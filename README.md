@@ -397,8 +397,8 @@ The focused dynamic suite covers policy decisions, public/private IPv4 and IPv6 
 |---|---:|
 | Redirect ends on another registrable domain | 25 |
 | Three or more redirects | 10 |
-| Password input in rendered DOM | 30 |
-| Credential form posts to another domain | 30 |
+| Password input in rendered DOM | Context flag only (0) |
+| Credential form posts to another domain | 40 |
 | TLS/certificate navigation error | 20 |
 | Automatic download attempt | 25 |
 | Automatic popup attempt | 10 |
@@ -416,11 +416,14 @@ Completed in the current Week 1–4 milestone:
 - redirect, DOM, TLS, popup/download, screenshot, timeout, and error evidence;
 - explainable scoring and deterministic offline tests;
 - integration into the URL-engine result and existing reserved database columns.
+- host-visible screenshot evidence served through the API and displayed in scan details;
+- one browser attempt per registrable domain, so tracking links cannot exhaust the scan budget;
+- fail-fast VirusTotal authentication handling and reduced HTML resource-URL noise.
 
 Planned for Weeks 5–8:
 
 - additional typed database/API fields for every dynamic flag and error;
-- richer URL-analysis UI and controlled screenshot serving;
+- screenshot retention automation and authorization for evidence access;
 - versioned harmless behavior corpus, latency/resource measurements, retention command, and final evaluation/reporting.
 
 See [`docs/DYNAMIC_URL_ANALYSIS_8_WEEK_PLAN.md`](docs/DYNAMIC_URL_ANALYSIS_8_WEEK_PLAN.md) for the complete schedule, teacher checkpoints, threat model, evaluation design, interview topics, and resume template.
@@ -464,6 +467,12 @@ ports:
 ---
 
 ## Architecture
+
+Detailed documentation:
+
+- [Complete project guide](docs/PROJECT_DETAIL.md) — architecture, every major feature, operations, testing, and CI/CD.
+- [URL engine walkthrough](docs/URL_ENGINE_WALKTHROUGH.md) — static, reputation, and dynamic browser analysis with examples.
+- [Dynamic URL eight-week plan](docs/DYNAMIC_URL_ANALYSIS_8_WEEK_PLAN.md) — milestone schedule and evaluation plan.
 
 For detailed technical documentation including schema diagrams, engine internals, and scoring formulas, see [`docs/PROJECT_DETAIL.md`](docs/PROJECT_DETAIL.md).
 

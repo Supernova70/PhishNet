@@ -33,3 +33,16 @@ def test_clean_observation_scores_zero():
     )
     assert score == 0
     assert flags == []
+
+
+def test_password_field_is_context_not_risk_by_itself():
+    score, flags = score_observation(
+        BrowserObservation(
+            final_url="https://accounts.example.com/login",
+            has_password_input=True,
+            has_login_form=True,
+        ),
+        "https://example.com/login",
+    )
+    assert score == 0
+    assert flags == ["Password input found in rendered DOM (context signal)"]

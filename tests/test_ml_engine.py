@@ -1,18 +1,12 @@
-import sys
-import os
+from pathlib import Path
 
-# Add the project directory to sys.path to import app modules
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from app.engines.text_analyzer import get_text_analyzer
+from app.engines.text_analyzer import TextAnalyzer
 
 def test_ml_engine():
     print("Initializing TextAnalyzer...")
-    analyzer = get_text_analyzer()
-    
-    if analyzer.model is None:
-        print("ERROR: Model failed to load.")
-        sys.exit(1)
+    model_path = Path(__file__).resolve().parents[1] / "data" / "phishing_model.joblib"
+    analyzer = TextAnalyzer(str(model_path))
+    assert analyzer.model is not None, f"Model failed to load from {model_path}"
         
     print("Model loaded successfully. Running tests...")
     

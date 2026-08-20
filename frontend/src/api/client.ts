@@ -18,6 +18,22 @@ export const apiClient = axios.create({
   },
 });
 
+export const resolveApiUrl = (path: string): string =>
+  new URL(path, `${apiClient.defaults.baseURL}/`).toString();
+
+export const resolveScreenshotUrl = (
+  artifactPath?: string | null,
+  storedPath?: string | null,
+): string | null => {
+  if (artifactPath) return resolveApiUrl(artifactPath);
+  if (!storedPath) return null;
+  const parts = storedPath.replaceAll('\\', '/').split('/').filter(Boolean);
+  if (parts.length < 2) return null;
+  const scanId = parts.at(-2);
+  const filename = parts.at(-1);
+  return resolveApiUrl(`/artifacts/url-screenshots/${scanId}/${filename}`);
+};
+
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,

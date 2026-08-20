@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Brain, Link2, Paperclip, ExternalLink, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
-import { getScan, getEmail } from '../api/client';
+import { getScan, getEmail, resolveScreenshotUrl } from '../api/client';
 import { ClassificationBadge, ScoreBadge } from '../components/ui/Badge';
 import { ScoreBar } from '../components/ui/ScoreBar';
 import { ScoreGauge } from '../components/ui/ScoreGauge';
@@ -103,6 +103,10 @@ function UrlRow({ urlEntry }: { urlEntry: ScanBreakdown['url']['per_url'][0] }) 
   const [expanded, setExpanded] = useState(false);
   const { url, score, top_flags, flags, vt_malicious } = urlEntry;
   const displayFlags = top_flags ?? flags ?? [];
+  const screenshotUrl = resolveScreenshotUrl(
+    urlEntry.screenshot_url,
+    urlEntry.playwright_screenshot_path,
+  );
 
   return (
     <div style={{ borderBottom: '1px solid var(--border-subtle)' }}>
@@ -142,6 +146,33 @@ function UrlRow({ urlEntry }: { urlEntry: ScanBreakdown['url']['per_url'][0] }) 
                 </span>
               ))}
             </div>
+          )}
+          {urlEntry.vt_error && (
+            <p style={{ color: 'var(--text-warning)', fontSize: '0.72rem', marginBottom: 10 }}>
+              VirusTotal: {urlEntry.vt_error}
+            </p>
+          )}
+          {urlEntry.dynamic_status && (
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.72rem', marginBottom: 10 }}>
+              Browser analysis: {urlEntry.dynamic_status}
+              {urlEntry.final_url ? ` · Final URL: ${urlEntry.final_url}` : ''}
+            </p>
+          )}
+          {screenshotUrl && (
+            <a
+              href={screenshotUrl}
+              target="_blank"
+              rel="noreferrer noopener"
+              onClick={(e) => e.stopPropagation()}
+              style={{ display: 'block', marginBottom: 12 }}
+            >
+              <img
+                src={screenshotUrl}
+                alt={`Browser evidence for ${url}`}
+                loading="lazy"
+                style={{ width: '100%', maxWidth: 720, borderRadius: 6, border: '1px solid var(--border-default)' }}
+              />
+            </a>
           )}
           <a
             href={getVtUrlLink(url)}

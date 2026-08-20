@@ -8,6 +8,7 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.config import get_settings
@@ -52,6 +53,13 @@ def create_app() -> FastAPI:
 
     # Mount API routes
     app.include_router(api_router)
+
+    # Browser evidence is read-only and lives outside the frontend bundle.
+    app.mount(
+        "/artifacts/url-screenshots",
+        StaticFiles(directory=settings.DYNAMIC_URL_SCREENSHOT_DIR, check_dir=False),
+        name="url-screenshots",
+    )
 
     return app
 

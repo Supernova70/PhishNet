@@ -84,6 +84,10 @@ export interface ScanBreakdown {
       flags?: string[];       // legacy field
       top_flags?: string[];   // current API field
       vt_malicious: number;
+      vt_suspicious?: number;
+      vt_harmless?: number;
+      vt_total?: number;
+      vt_error?: string | null;
       heuristic_score?: number;
       vt_score?: number;
       final_score?: number;
@@ -101,6 +105,7 @@ export interface ScanBreakdown {
       popup_attempted?: boolean;
       dynamic_elapsed_ms?: number;
       playwright_screenshot_path?: string | null;
+      screenshot_url?: string | null;
     }>;
   };
   attachment: {

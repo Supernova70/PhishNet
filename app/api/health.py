@@ -1,4 +1,4 @@
-"""Health check endpoint — checks DB, ML Model, and VirusTotal status."""
+"""Health check endpoint for storage and analysis-engine configuration."""
 
 import time
 import logging
@@ -53,7 +53,7 @@ async def health_check():
     vt_keys = settings.vt_api_keys
     vt_status = "configured" if vt_keys else "not_configured"
     vt_detail = (
-        f"{len(vt_keys)} API key(s) loaded"
+        f"{len(vt_keys)} API key(s) loaded; credentials are validated on lookup"
         if vt_keys
         else "No API keys — set VIRUSTOTAL_API_KEYS in .env"
     )
@@ -77,6 +77,16 @@ async def health_check():
                 "status": vt_status,
                 "key_count": len(vt_keys),
                 "detail": vt_detail,
+            },
+            "dynamic_url": {
+                "status": "enabled" if settings.DYNAMIC_URL_ENABLED else "disabled",
+                "max_per_scan": settings.DYNAMIC_URL_MAX_PER_SCAN,
+                "screenshot_dir": settings.DYNAMIC_URL_SCREENSHOT_DIR,
+                "detail": (
+                    "Policy-gated Chromium analysis is enabled"
+                    if settings.DYNAMIC_URL_ENABLED
+                    else "Static URL analysis only; set DYNAMIC_URL_ENABLED=true to opt in"
+                ),
             },
         },
     }

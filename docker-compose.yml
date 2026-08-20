@@ -9,6 +9,7 @@ services:
     volumes:
       - .:/app                          # Hot-reload during development
       - uploads_data:/app/uploads       # Persist attachment files
+      - ./uploads/url_screenshots:/app/uploads/url_screenshots # Host-visible browser evidence
     depends_on:
       postgres:
         condition: service_healthy
@@ -16,6 +17,7 @@ services:
       sh -c "
         alembic upgrade head &&
         uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+        --reload-exclude '.venv/*' --reload-exclude 'uploads/*' --reload-exclude 'frontend/*'
       "
 
   postgres:

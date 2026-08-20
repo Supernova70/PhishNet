@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { WifiOff } from 'lucide-react';
@@ -6,7 +6,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { ToastContainer } from '../ui/Toast';
 import { useToast } from '../../hooks/useToast';
-import { checkBackendOnline } from '../../api/client';
+import { useSystemHealth } from '../../hooks/useSystemHealth';
 
 const PAGE_CONFIG: Record<string, { title: string; breadcrumbs: Array<{ label: string }> }> = {
   '/': { title: 'Dashboard', breadcrumbs: [{ label: 'Monitor' }, { label: 'Dashboard' }] },
@@ -21,7 +21,8 @@ const PAGE_CONFIG: Record<string, { title: string; breadcrumbs: Array<{ label: s
 
 export function Layout() {
   const location = useLocation();
-  const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
+  const { health, loading: healthLoading } = useSystemHealth();
+  const backendOnline = healthLoading ? null : health !== null;
   const [refreshKey, setRefreshKey] = useState(0);
   const { toasts, toast, removeToast } = useToast();
 
@@ -31,22 +32,14 @@ export function Layout() {
   ) ?? '/';
   const pageConf = PAGE_CONFIG[pathKey] ?? PAGE_CONFIG['/'];
 
-  useEffect(() => {
-    let mounted = true;
-    const check = async () => {
-      const online = await checkBackendOnline();
-      if (mounted) setBackendOnline(online);
-    };
-    check();
-    const id = setInterval(check, 30000);
-    return () => { mounted = false; clearInterval(id); };
-  }, []);
-
   const handleEmailsFetched = () => setRefreshKey((k) => k + 1);
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)' }}>
-      <Sidebar apiStatus={backendOnline === false ? 'offline' : 'online'} />
+      <Sidebar
+        apiStatus={backendOnline === false ? 'offline' : backendOnline ? 'online' : 'warning'}
+        health={health}
+      />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Backend Offline Banner */}

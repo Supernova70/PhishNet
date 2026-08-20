@@ -183,5 +183,5 @@ rule OfficeMacroEnvVarRecon : office macro reconnaissance
         $var6 = "PROCESSOR_ARCHITECTURE" nocase ascii wide  // x86 vs x64 targeting
 
     condition:
-        $env1 and 2 of ($var*)
+        1 of ($env*) and 2 of ($var*)
 }

@@ -51,7 +51,8 @@ rule PhishingCredentialHarvest : phishing credentials
 
     condition:
         // A credential form + a POST + either a mailer or POST variable grab
-        ( ($form1 or $form2) and $post ) and ($mail1 or $mail2)
+        (1 of ($form1, $form2) and 1 of ($form3, $form4) and $post)
+        and ($mail1 or $mail2)
 }
 
 

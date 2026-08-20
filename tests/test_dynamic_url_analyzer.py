@@ -48,7 +48,7 @@ def test_analyzer_uses_adapter_and_scores_observation():
     )
 
     assert result.status == "complete"
-    assert result.dynamic_score == 85
+    assert result.dynamic_score == 65
     assert adapter.calls == [("https://short.example", 11)]
 
 

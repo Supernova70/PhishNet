@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { getHealth } from '../api/client';
 
 export interface ComponentStatus {
-  status: 'connected' | 'error' | 'loaded' | 'not_loaded';
+  status: string;
   detail: string;
 }
 
@@ -11,32 +12,49 @@ export interface HealthResponse {
   response_time_ms: number;
   components: {
     database: ComponentStatus;
-    redis: ComponentStatus;
     ml_model: ComponentStatus;
+    virustotal?: ComponentStatus;
+    dynamic_url?: ComponentStatus;
   };
 }
 
-export const useSystemHealth = () => {
+interface SystemHealthContextValue {
+  health: HealthResponse | null;
+  loading: boolean;
+  refresh: () => Promise<void>;
+}
+
+const SystemHealthContext = createContext<SystemHealthContextValue | null>(null);
+
+export function SystemHealthProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const check = async () => {
-      try {
-        const r = await fetch('http://localhost:8080/health');
-        const data: HealthResponse = await r.json();
-        setHealth(data);
-      } catch {
-        setHealth(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    check();
-    const interval = setInterval(check, 30000); // re-check every 30s
-    return () => clearInterval(interval);
+  const refresh = useCallback(async () => {
+    try {
+      setHealth(await getHealth() as HealthResponse);
+    } catch {
+      setHealth(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { health, loading };
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 30000);
+    return () => clearInterval(interval);
+  }, [refresh]);
+
+  return createElement(
+    SystemHealthContext.Provider,
+    { value: { health, loading, refresh } },
+    children,
+  );
+}
+
+export const useSystemHealth = () => {
+  const context = useContext(SystemHealthContext);
+  if (!context) throw new Error('useSystemHealth must be used inside SystemHealthProvider');
+  return context;
 };

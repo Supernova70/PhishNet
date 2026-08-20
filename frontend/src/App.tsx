@@ -7,6 +7,7 @@ import { ScanDetail } from './pages/ScanDetail';
 import { HealthPage } from './pages/HealthPage';
 import { ActiveScans } from './pages/ActiveScans';
 import { UrlAnalysis } from './pages/UrlAnalysis';
+import { SystemHealthProvider } from './hooks/useSystemHealth';
 
 // ─── Placeholder pages for nav items without full pages ──────────────────────
 function PlaceholderPage({ title }: { title: string }) {
@@ -21,8 +22,9 @@ function PlaceholderPage({ title }: { title: string }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <SystemHealthProvider>
+      <BrowserRouter>
+        <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="emails" element={<EmailInbox />} />
@@ -35,7 +37,8 @@ export default function App() {
           <Route path="settings" element={<PlaceholderPage title="Settings" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </SystemHealthProvider>
   );
 }

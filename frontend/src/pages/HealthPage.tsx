@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Database, Server, RefreshCw, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Activity, Database, Server, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, Globe2 } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { useSystemHealth, type HealthResponse } from '../hooks/useSystemHealth';
 
@@ -76,7 +76,7 @@ function ServiceCard({ name, icon, status, detail, variant = 'unknown' }: Servic
 }
 
 export function HealthPage() {
-  const { health, loading: hookLoading } = useSystemHealth();
+  const { health, loading: hookLoading, refresh } = useSystemHealth();
   const [history, setHistory] = useState<HealthSnapshot[]>([]);
   const [latency, setLatency] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -84,23 +84,22 @@ export function HealthPage() {
 
   const fetchAndTrack = useCallback(async () => {
     const t0 = performance.now();
-    try {
-      await fetch('http://127.0.0.1:8080/health');
-      const ms = Math.round(performance.now() - t0);
-      setLatency(ms);
-      setHistory((prev) => [...prev.slice(-19), { time: Date.now(), latency: ms, status: true }]);
-    } catch {
-      setHistory((prev) => [...prev.slice(-19), { time: Date.now(), latency: 0, status: false }]);
-    } finally {
-      setLastUpdated(new Date());
-    }
-  }, []);
+    await refresh();
+    const ms = Math.round(performance.now() - t0);
+    setLatency(ms);
+    setHistory((prev) => [...prev.slice(-19), { time: Date.now(), latency: ms, status: true }]);
+    setLastUpdated(new Date());
+  }, [refresh]);
 
   useEffect(() => {
-    fetchAndTrack();
-    const id = setInterval(fetchAndTrack, 10000);
-    return () => clearInterval(id);
-  }, [fetchAndTrack]);
+    if (health) {
+      setLatency(health.response_time_ms);
+      setLastUpdated(new Date());
+      setHistory((prev) => [...prev.slice(-19), {
+        time: Date.now(), latency: health.response_time_ms, status: true,
+      }]);
+    }
+  }, [health]);
 
   const handleRefresh = async () => {
     setManualLoading(true);
@@ -111,6 +110,7 @@ export function HealthPage() {
   const allOk = health?.status === 'ok';
   const dbStatus = health?.components?.database?.status;
   const mlStatus = health?.components?.ml_model?.status;
+  const dynamicStatus = health?.components?.dynamic_url?.status;
 
   // Determine failing components for degraded banner
   const failingComponents: string[] = [];
@@ -151,7 +151,7 @@ export function HealthPage() {
               {hookLoading ? 'Checking...' : allOk ? 'All Systems Operational' : health ? 'System Degraded' : 'Backend Offline'}
             </p>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>
-              Last checked: {lastUpdated ? lastUpdated.toLocaleTimeString() : '—'} · Auto-refreshes every 10s
+              Last checked: {lastUpdated ? lastUpdated.toLocaleTimeString() : '—'} · Auto-refreshes every 30s
             </p>
             {failingComponents.length > 0 && (
               <p style={{ fontSize: '0.8rem', color: '#FCD34D', marginTop: 6 }}>
@@ -175,14 +175,21 @@ export function HealthPage() {
         </div>
       </motion.div>
 
-      {/* Service Cards — 3 columns (API, Database, ML Model) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      {/* Service cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
         <ServiceCard
           name="API"
           icon={<Server size={16} />}
           status={health ? (allOk ? 'HEALTHY' : 'DEGRADED') : 'OFFLINE'}
           detail={health ? `${health.response_time_ms}ms response` : 'Cannot reach backend'}
           variant={health ? (allOk ? 'healthy' : 'warning') : 'error'}
+        />
+        <ServiceCard
+          name="Dynamic URL"
+          icon={<Globe2 size={16} />}
+          status={!health ? 'UNKNOWN' : dynamicStatus === 'enabled' ? 'ENABLED' : 'DISABLED'}
+          detail={health?.components?.dynamic_url?.detail ?? 'No data'}
+          variant={!health ? 'unknown' : dynamicStatus === 'enabled' ? 'healthy' : 'warning'}
         />
         <ServiceCard
           name="Database"

@@ -4,6 +4,7 @@ import { Link2, Search, ExternalLink, Copy, Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { Scan } from '../types';
 import { getVtUrlLink } from '../utils/virustotal';
+import { resolveScreenshotUrl } from '../api/client';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface UrlEntry {
@@ -19,6 +20,9 @@ interface UrlEntry {
   email_id: number;
   scanned_at: string | null;
   is_shortener?: boolean;
+  dynamic_status?: string;
+  screenshot_url?: string | null;
+  playwright_screenshot_path?: string | null;
 }
 
 type RiskFilter = 'all' | 'high' | 'medium' | 'low';
@@ -57,6 +61,10 @@ function UrlRow({ entry, expanded, onExpand }: {
   const scoreBg = entry.score >= 70 ? 'rgba(239,68,68,0.12)' : entry.score >= 30 ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)';
 
   const displayUrl = entry.url.length > 60 ? entry.url.slice(0, 60) + '…' : entry.url;
+  const screenshotUrl = resolveScreenshotUrl(
+    entry.screenshot_url,
+    entry.playwright_screenshot_path,
+  );
 
   // Determine VT detection label and color based on available data
   let vtText: string;
@@ -227,6 +235,23 @@ function UrlRow({ entry, expanded, onExpand }: {
                 </div>
               )}
 
+              {entry.dynamic_status && (
+                <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                  Browser analysis: {entry.dynamic_status}
+                </div>
+              )}
+
+              {screenshotUrl && (
+                <a href={screenshotUrl} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={screenshotUrl}
+                    alt={`Browser evidence for ${entry.url}`}
+                    loading="lazy"
+                    style={{ width: '100%', maxWidth: 720, borderRadius: 6, border: '1px solid var(--border-default)' }}
+                  />
+                </a>
+              )}
+
               {/* Open in VirusTotal */}
               <a
                 href={getVtUrlLink(entry.url)}
@@ -295,6 +320,9 @@ export function UrlAnalysis() {
               email_id: s.email_id,
               scanned_at: s.completed_at,
               is_shortener: false,
+              dynamic_status: u.dynamic_status,
+              screenshot_url: u.screenshot_url,
+              playwright_screenshot_path: u.playwright_screenshot_path,
             });
           }
         });

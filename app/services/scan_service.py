@@ -6,6 +6,7 @@ a verdict, and stores the results in the database.
 """
 
 import logging
+from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
@@ -144,6 +145,10 @@ class ScanService:
                                 "url": u.original_url,
                                 "score": u.final_score,
                                 "vt_malicious": u.vt_malicious,
+                                "vt_suspicious": u.vt_suspicious,
+                                "vt_harmless": u.vt_harmless,
+                                "vt_total": u.vt_total,
+                                "vt_error": u.vt_error,
                                 "top_flags": (
                                     (u.heuristic_flags or []) + (u.dynamic_flags or [])
                                 )[:8],
@@ -163,6 +168,12 @@ class ScanService:
                                 "popup_attempted": u.popup_attempted,
                                 "dynamic_elapsed_ms": u.dynamic_elapsed_ms,
                                 "playwright_screenshot_path": u.playwright_screenshot_path,
+                                "screenshot_url": (
+                                    f"/artifacts/url-screenshots/{scan.id}/"
+                                    f"{Path(u.playwright_screenshot_path).name}"
+                                    if u.playwright_screenshot_path
+                                    else None
+                                ),
                             }
                             for u in (url_result.per_url_results if url_result else [])
                         ],

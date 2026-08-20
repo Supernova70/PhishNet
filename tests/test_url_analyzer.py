@@ -100,3 +100,58 @@ class TestUrlAnalyzer:
         assert per_url.final_score >= per_url.heuristic_score
         assert per_url.dom_has_login_form is True
         assert per_url.redirect_chain[-1] == "https://landing.example/login"
+
+    def test_html_resource_src_is_not_a_url_candidate(self):
+        analyzer = UrlAnalyzer(settings())
+        result = analyzer.analyze(
+            "",
+            '<a href="https://example.com/account">Account</a>'
+            '<img src="https://cdn.example.net/tracker.png">',
+        )
+        assert [item.original_url for item in result.per_url_results] == [
+            "https://example.com/account"
+        ]
+
+    def test_dynamic_analysis_runs_once_per_registered_domain(self):
+        dynamic_analyzer = MagicMock()
+        dynamic_analyzer.analyze = AsyncMock(
+            return_value=DynamicUrlResult(
+                status="complete",
+                dynamic_score=0,
+                dynamic_flags=[],
+                observation=BrowserObservation(
+                    attempted=True,
+                    final_url="https://example.com/home",
+                ),
+            )
+        )
+        analyzer = UrlAnalyzer(
+            settings(DYNAMIC_URL_ENABLED=True, DYNAMIC_URL_MAX_PER_SCAN=3),
+            dynamic_analyzer=dynamic_analyzer,
+        )
+        result = analyzer.analyze(
+            "https://example.com/one https://www.example.com/two", ""
+        )
+
+        assert dynamic_analyzer.analyze.await_count == 1
+        assert sorted(item.dynamic_status for item in result.per_url_results) == [
+            "complete",
+            "skipped:duplicate_domain",
+        ]
+
+    @patch("app.engines.url_analyzer.httpx.Client")
+    def test_vt_auth_failure_stops_more_requests_in_same_scan(self, mock_client):
+        unauthorized = MagicMock(status_code=401)
+        mock_client.return_value.__enter__.return_value.get.return_value = unauthorized
+        analyzer = UrlAnalyzer(settings(VIRUSTOTAL_API_KEYS="bad-key"))
+
+        result = analyzer.analyze(
+            "https://one.example https://two.example.net", ""
+        )
+
+        assert mock_client.return_value.__enter__.return_value.get.call_count == 1
+        assert result.vt_checked_urls == 1
+        assert all(
+            item.vt_error == "VT authentication failed — check VIRUSTOTAL_API_KEYS"
+            for item in result.per_url_results
+        )

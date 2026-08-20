@@ -47,7 +47,7 @@ from typing import List, Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 # Rules directory — relative to this file's location
-_RULES_DIR = Path(__file__).parent / "rules"
+_RULES_DIR = Path(__file__).parent.parent / "rules"
 
 # Severity order for score mapping
 _SEVERITY_SCORES: Dict[str, float] = {
@@ -217,14 +217,27 @@ class YaraScanner:
             logger.warning(cls._rules_error)
             return False
 
-        # Build a filepaths dict: {namespace: path_string}
-        # Namespace is the filename without extension — shown in match output
-        filepaths: Dict[str, str] = {
-            f.stem: str(f) for f in rule_files
+        # YARA's parser accepts ASCII source. The maintained rules use Unicode
+        # punctuation in comments/metadata for readability, so normalize only
+        # the compiled in-memory copy rather than rewriting the source files.
+        def compile_source(rule_file: Path) -> str:
+            lines = []
+            for line in rule_file.read_text(encoding="utf-8").splitlines():
+                # The educational rule files use shell-style heading comments;
+                # translate them to YARA comment syntax for the parser.
+                stripped = line.lstrip()
+                if stripped.startswith("#"):
+                    indent = line[: len(line) - len(stripped)]
+                    line = f"{indent}//{stripped[1:]}"
+                lines.append(line)
+            return "\n".join(lines).encode("ascii", errors="replace").decode("ascii")
+
+        sources: Dict[str, str] = {
+            rule_file.stem: compile_source(rule_file) for rule_file in rule_files
         }
 
         try:
-            cls._compiled_rules = yara.compile(filepaths=filepaths)
+            cls._compiled_rules = yara.compile(sources=sources)
             cls._rules_loaded = True
             cls._rules_error = None
             logger.info(

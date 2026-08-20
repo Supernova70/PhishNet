@@ -71,6 +71,7 @@ class UrlAnalyzer:
         self._settings = settings or get_settings()
         self._vt_keys = self._settings.vt_api_keys
         self._vt_key_index = 0
+        self._vt_disabled_reason: str | None = None
         self._dynamic_analyzer = dynamic_analyzer
 
     def analyze(
@@ -90,8 +91,8 @@ class UrlAnalyzer:
 
             # VirusTotal lookup
             if self._vt_keys:
-                self._check_virustotal(result)
-                vt_checked += 1
+                if self._check_virustotal(result):
+                    vt_checked += 1
 
             # Aggregate final score
             result.final_score = min(
@@ -125,15 +126,22 @@ class UrlAnalyzer:
         )
         started = time.monotonic()
         visited = 0
+        visited_domains: set[str] = set()
 
         for result in sorted(results, key=lambda item: item.final_score, reverse=True):
+            target_url = result.normalized_url or result.original_url
+            target_domain = registrable_domain(target_url)
+            if target_domain and target_domain in visited_domains:
+                result.dynamic_status = "skipped:duplicate_domain"
+                continue
+
             within_budget = (
                 visited < self._settings.DYNAMIC_URL_MAX_PER_SCAN
                 and time.monotonic() - started
                 < self._settings.DYNAMIC_URL_SCAN_BUDGET_SECONDS
             )
             dynamic = await analyzer.analyze(
-                result.normalized_url or result.original_url,
+                target_url,
                 static_score=result.final_score,
                 vt_malicious=result.vt_malicious,
                 is_shortener=result.is_shortener,
@@ -143,6 +151,8 @@ class UrlAnalyzer:
             )
             if not dynamic.status.startswith("skipped:"):
                 visited += 1
+                if target_domain:
+                    visited_domains.add(target_domain)
 
             observation = dynamic.observation
             result.dynamic_status = dynamic.status
@@ -184,8 +194,9 @@ class UrlAnalyzer:
             soup = BeautifulSoup(body_html, "html.parser")
             for tag in soup.find_all(href=True):
                 raw_urls.add(tag["href"])
-            for tag in soup.find_all(src=True):
-                raw_urls.add(tag["src"])
+            # Resource URLs (img/script/iframe src) create noisy candidates and
+            # can consume the browser budget. Analyze navigable links and form
+            # actions; the browser still observes resources during navigation.
             for tag in soup.find_all(action=True):
                 raw_urls.add(tag["action"])
 
@@ -389,13 +400,17 @@ class UrlAnalyzer:
     # Note: Redis caching removed for Semester 1. Direct VT HTTP calls each time.
     # Caching will be re-added in Semester 2 with Redis.
 
-    def _check_virustotal(self, result: UrlAnalysisResult) -> None:
+    def _check_virustotal(self, result: UrlAnalysisResult) -> bool:
+        if self._vt_disabled_reason:
+            result.vt_error = self._vt_disabled_reason
+            return False
+
         if not self._vt_keys:
             result.vt_error = (
                 "No VT API keys configured — set VIRUSTOTAL_API_KEYS in .env"
             )
             logger.warning("VT lookup skipped: no API keys configured")
-            return
+            return False
 
         url_id = (
             base64.urlsafe_b64encode(result.normalized_url.encode())
@@ -424,6 +439,12 @@ class UrlAnalyzer:
                         f"VT result: malicious={result.vt_malicious} "
                         f"suspicious={result.vt_suspicious} total={result.vt_total}"
                     )
+                elif resp.status_code in (401, 403):
+                    self._vt_disabled_reason = (
+                        "VT authentication failed — check VIRUSTOTAL_API_KEYS"
+                    )
+                    result.vt_error = self._vt_disabled_reason
+                    logger.error(self._vt_disabled_reason)
 
                 elif resp.status_code == 404:
                     result.vt_error = "Submitted to VT — not yet analyzed"
@@ -444,9 +465,12 @@ class UrlAnalyzer:
                     )
                     result.vt_error = f"VT HTTP Error {resp.status_code}"
 
+            return True
+
         except Exception as e:
             logger.warning(f"VT request failed: {e}")
             result.vt_error = "VT connection failed"
+            return True
 
     def _apply_vt_stats(self, result: UrlAnalysisResult, stats: dict) -> None:
         result.vt_malicious = stats.get("malicious", 0)

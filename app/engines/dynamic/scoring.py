@@ -35,10 +35,12 @@ def score_observation(
         score += 10
         flags.append("Three or more redirects observed")
     if observation.has_password_input:
-        score += 30
-        flags.append("Password input found in rendered DOM")
+        # A password field is common on legitimate login pages. Preserve it as
+        # explainable context, but only score credential collection when the
+        # form submits off-domain (or another malicious behavior is observed).
+        flags.append("Password input found in rendered DOM (context signal)")
     if observation.external_form_action:
-        score += 30
+        score += 40
         flags.append("Credential form submits to another domain")
     if observation.tls_error:
         score += 20

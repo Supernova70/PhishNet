@@ -12,7 +12,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { StatusDot } from '../ui/Badge';
-import { useSystemHealth } from '../../hooks/useSystemHealth';
+import type { HealthResponse } from '../../hooks/useSystemHealth';
 
 interface NavItem {
   to: string;
@@ -114,11 +114,11 @@ interface SidebarProps {
   unreadCount?: number;
   runningScans?: number;
   apiStatus?: 'online' | 'offline' | 'warning';
+  health?: HealthResponse | null;
 }
 
-export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online' }: SidebarProps) {
+export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online', health = null }: SidebarProps) {
   const location = useLocation();
-  const { health } = useSystemHealth();
 
   const monitorItems: NavItem[] = [
     { to: '/', icon: <LayoutDashboard size={16} />, label: 'Dashboard' },
