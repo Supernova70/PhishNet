@@ -126,7 +126,7 @@ Cap the total at 100. The per-URL result becomes `max(static_final_score, dynami
 ### Browser-safety requirements
 
 1. Reuse the existing local-IP check concept, but strengthen it with Python's `ipaddress` module. Block loopback, private, link-local, multicast, unspecified, and reserved IP addresses, including IPv6.
-2. Re-check every requested host through Playwright request routing, not only the first URL. Redirects can otherwise reach internal services.
+2. Resolve HTTP redirects with a no-follow preflight and validate every `Location` before Chromium navigation. Then use Playwright context routing for browser/JavaScript requests. Routing alone does not reliably pause every HTTP 3xx hop.
 3. Use a fresh browser context with no persisted cookies/storage, `accept_downloads=False`, JavaScript dialogs dismissed, one tab, and a fixed user agent.
 4. Apply navigation and total budgets. On timeout or browser failure, return `DynamicUrlResult(visited=False, dynamic_score=0, error=...)`; never fail the whole scan.
 5. Store screenshots below `uploads/screenshots/<scan_id>/` with a SHA-256-derived filename. Do not use a user-supplied filename in a path.

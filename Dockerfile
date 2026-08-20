@@ -18,11 +18,14 @@ COPY pyproject.toml .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir .
 
+# Install only Chromium and its runtime libraries for dynamic URL analysis.
+RUN python -m playwright install --with-deps chromium
+
 # Copy application code
 COPY . .
 
 # Create directories
-RUN mkdir -p /app/uploads /app/data
+RUN mkdir -p /app/uploads /app/uploads/url_screenshots /app/data
 
 EXPOSE 8000
 

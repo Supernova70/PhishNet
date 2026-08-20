@@ -5,6 +5,7 @@ import type {
   Scan,
   HealthStatus,
   FetchEmailsResponse,
+  ScanTriggerResponse,
 } from '../types';
 
 // ─── Axios Instance ───────────────────────────────────────────────────────────
@@ -70,8 +71,8 @@ export const getScan = async (id: number): Promise<Scan> => {
   return data;
 };
 
-export const runScan = async (emailId: number): Promise<Scan> => {
-  const { data } = await apiClient.post<Scan>(`/scans/${emailId}`);
+export const runScan = async (emailId: number): Promise<ScanTriggerResponse> => {
+  const { data } = await apiClient.post<ScanTriggerResponse>(`/scans/${emailId}`);
   return data;
 };
 

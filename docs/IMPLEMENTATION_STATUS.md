@@ -98,7 +98,7 @@ Legend: ✅ done & wired · 🟡 code exists but disabled / stubbed · ❌ not s
 | 10 static heuristic checks | ✅ | `_score_heuristic()` — HTTP, IP host, TLD, shortener, brand impersonation, subdomains, long URL, entropy, `@`, redirect |
 | VirusTotal URL v3 lookup + round-robin keys | ✅ | `_check_virustotal()` (only if keys set) |
 | Per-URL DB rows (`url_results`) | ✅ | written by `ScanService` |
-| **Dynamic analysis (Playwright)** | ❌ | Columns reserved: `dynamic_score`, `redirect_chain`, `dom_has_login_form`, `ssl_valid`, `playwright_screenshot_path` |
+| **Dynamic analysis (Playwright, Weeks 1–4 MVP)** | ✅ | Policy gate, SSRF validation, redirect preflight, isolated Chromium observation, DOM/TLS/download/popup evidence, screenshots, scoring, and static fallback implemented; richer UI/persistence fields remain Weeks 5–6 |
 | VT result caching | ❌ | Redis removed intentionally |
 
 ### 2.4 Engine 3 — Attachment Analysis (static + YARA)
@@ -129,7 +129,7 @@ Legend: ✅ done & wired · 🟡 code exists but disabled / stubbed · ❌ not s
 | Charts (classification donut, threat timeline) | ✅ | `components/charts/` |
 | API key auth middleware | 🟡 | `app/middleware/auth.py` exists, **not mounted** |
 | Redis / caching | ❌ | `app/cache.py` is a stub returning None |
-| Celery async queue | ❌ | Only BackgroundTask today |
+| Celery async queue | ❌ | FastAPI BackgroundTasks + HTTP 202 polling are implemented; a durable Celery/Redis queue remains future production work |
 | Notifications / webhooks | ❌ | |
 | Sysmon dynamic analysis | ❌ | |
 

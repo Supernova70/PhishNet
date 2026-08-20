@@ -47,6 +47,13 @@ export interface ScanWithEmail extends Scan {
   email?: Email;
 }
 
+export interface ScanTriggerResponse {
+  status: 'queued';
+  scan_id: number;
+  email_id: number;
+  verdict: null;
+}
+
 export interface Verdict {
   id: number;
   scan_id: number;
@@ -81,6 +88,19 @@ export interface ScanBreakdown {
       vt_score?: number;
       final_score?: number;
       vt_detections?: { malicious: number; suspicious: number; harmless: number; total: number };
+      dynamic_score?: number;
+      dynamic_status?: string;
+      dynamic_flags?: string[];
+      dynamic_error?: string | null;
+      final_url?: string | null;
+      redirect_chain?: string[];
+      dom_has_login_form?: boolean;
+      ssl_valid?: boolean | null;
+      external_form_action?: boolean;
+      download_attempted?: boolean;
+      popup_attempted?: boolean;
+      dynamic_elapsed_ms?: number;
+      playwright_screenshot_path?: string | null;
     }>;
   };
   attachment: {

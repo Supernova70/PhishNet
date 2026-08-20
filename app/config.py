@@ -43,6 +43,37 @@ class Settings(BaseSettings):
     ATTACHMENT_DIR: str = "/app/uploads"
     MODEL_PATH: str = "/app/data/phishing_model.joblib"
 
+    # ── Dynamic URL analysis ─────────────────────────────
+    # Disabled by default: browser navigation must be an explicit deployment choice.
+    DYNAMIC_URL_ENABLED: bool = False
+    DYNAMIC_URL_NAVIGATION_TIMEOUT_SECONDS: int = 12
+    DYNAMIC_URL_TOTAL_TIMEOUT_SECONDS: int = 20
+    DYNAMIC_URL_SCAN_BUDGET_SECONDS: int = 45
+    DYNAMIC_URL_MAX_PER_SCAN: int = 3
+    DYNAMIC_URL_MAX_REDIRECTS: int = 8
+    DYNAMIC_URL_RENDER_DELAY_MS: int = 1500
+    DYNAMIC_URL_ALLOWED_PORTS: str = "80,443"
+    DYNAMIC_URL_SCREENSHOT_DIR: str = "/app/uploads/url_screenshots"
+    DYNAMIC_URL_SCREENSHOT_RETENTION_DAYS: int = 14
+    DYNAMIC_URL_USER_AGENT: str = (
+        "PhishingGuardDynamicAnalyzer/2.0 "
+        "(defensive-security research; no interaction)"
+    )
+
+    @property
+    def dynamic_url_allowed_ports(self) -> tuple[int, ...]:
+        """Parse and validate the configured browser destination ports."""
+        ports: list[int] = []
+        for value in self.DYNAMIC_URL_ALLOWED_PORTS.split(","):
+            value = value.strip()
+            if not value:
+                continue
+            port = int(value)
+            if not 1 <= port <= 65535:
+                raise ValueError(f"Invalid dynamic URL port: {port}")
+            ports.append(port)
+        return tuple(ports or (80, 443))
+
     # ── Attachment Engine ────────────────────────────────
     # Maximum file size (bytes) the attachment engine will read into memory.
     # Files exceeding this are skipped and flagged in the breakdown.
@@ -65,10 +96,10 @@ def get_settings() -> Settings:
     return Settings()
 
 
-# ── Future: Redis (Semester 2) ───────────────────────────────────────
+# ── Future: durable worker queue ─────────────────────────────────────
 # Redis will be added in Semester 2 for:
 #   - VirusTotal result caching (reduce API quota usage)
 #   - Celery task queue for async scan execution
-#   - Playwright headless browser job queuing
+#   - durable Playwright headless browser job queuing
 # When ready, add: REDIS_URL: str = "redis://redis:6379/0"
 # and add redis service back to docker-compose.yml

@@ -11,12 +11,12 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.email import Email
-from app.models.scan import Scan, Verdict, ScanStatus, Classification
-from app.models.url_result import UrlResult
-from app.engines.text_analyzer import get_text_analyzer
 from app.engines.attachment_analyzer import AttachmentAnalyzer
+from app.engines.text_analyzer import get_text_analyzer
 from app.engines.url_analyzer import UrlAnalyzer
+from app.models.email import Email
+from app.models.scan import Classification, Scan, ScanStatus, Verdict
+from app.models.url_result import UrlResult
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class ScanService:
             url_analyzer = UrlAnalyzer()
             body_text = email.body_text or ""
             body_html = email.body_html or ""
-            url_result = url_analyzer.analyze(body_text, body_html)
+            url_result = url_analyzer.analyze(body_text, body_html, scan_id=scan.id)
             url_score = url_result.url_score
 
             # Persist each URL result row
@@ -96,6 +96,11 @@ class ScanService:
                     vt_total=ur.vt_total,
                     vt_error=ur.vt_error,
                     heuristic_flags=ur.heuristic_flags,
+                    dynamic_score=ur.dynamic_score,
+                    redirect_chain=ur.redirect_chain,
+                    dom_has_login_form=ur.dom_has_login_form,
+                    ssl_valid=ur.ssl_valid,
+                    playwright_screenshot_path=ur.playwright_screenshot_path,
                 )
                 self.db.add(db_url)
 
@@ -105,7 +110,9 @@ class ScanService:
             attachment_score = att_result.attachment_score
 
             # ── 4. Compute Final Score + Verdict ──────────────────
-            final_score = self._compute_final_score(ai_score, url_score, attachment_score)
+            final_score = self._compute_final_score(
+                ai_score, url_score, attachment_score
+            )
             classification = self._classify(final_score)
 
             verdict = Verdict(
@@ -126,15 +133,36 @@ class ScanService:
                         "score": url_score,
                         "total_urls": url_result.total_urls if url_result else 0,
                         "analyzed_urls": url_result.analyzed_urls if url_result else 0,
-                        "vt_checked_urls": url_result.vt_checked_urls if url_result else 0,
-                        "high_risk_urls": url_result.high_risk_urls if url_result else [],
+                        "vt_checked_urls": url_result.vt_checked_urls
+                        if url_result
+                        else 0,
+                        "high_risk_urls": url_result.high_risk_urls
+                        if url_result
+                        else [],
                         "per_url": [
                             {
                                 "url": u.original_url,
                                 "score": u.final_score,
-                                "heuristic_score": u.heuristic_score,
                                 "vt_malicious": u.vt_malicious,
-                                "top_flags": u.heuristic_flags[:5] if u.heuristic_flags else [],
+                                "top_flags": (
+                                    (u.heuristic_flags or []) + (u.dynamic_flags or [])
+                                )[:8],
+                                "heuristic_score": u.heuristic_score,
+                                "vt_score": u.vt_score,
+                                "dynamic_score": u.dynamic_score,
+                                "final_score": u.final_score,
+                                "dynamic_status": u.dynamic_status,
+                                "dynamic_flags": u.dynamic_flags,
+                                "dynamic_error": u.dynamic_error,
+                                "final_url": u.final_url,
+                                "redirect_chain": u.redirect_chain,
+                                "dom_has_login_form": u.dom_has_login_form,
+                                "ssl_valid": u.ssl_valid,
+                                "external_form_action": u.external_form_action,
+                                "download_attempted": u.download_attempted,
+                                "popup_attempted": u.popup_attempted,
+                                "dynamic_elapsed_ms": u.dynamic_elapsed_ms,
+                                "playwright_screenshot_path": u.playwright_screenshot_path,
                             }
                             for u in (url_result.per_url_results if url_result else [])
                         ],
@@ -164,12 +192,14 @@ class ScanService:
 
         except Exception as e:
             import traceback
+
             scan.status = ScanStatus.ERROR.value
             scan.completed_at = datetime.utcnow()
             self.db.commit()
-            logger.error(f"Scan {scan.id} failed: {type(e).__name__}: {e}\n{traceback.format_exc()}")
+            logger.error(
+                f"Scan {scan.id} failed: {type(e).__name__}: {e}\n{traceback.format_exc()}"
+            )
             raise
-
 
     def _compute_final_score(
         self, ai_score: float, url_score: float, attachment_score: float

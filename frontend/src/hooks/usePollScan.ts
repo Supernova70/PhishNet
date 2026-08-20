@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getScan } from '../api/client';
 import type { Scan } from '../types';
 
-const MAX_RETRIES = 30;
+const MAX_RETRIES = 90;
 const POLL_INTERVAL = 2000;
 
 export function usePollScan() {
@@ -32,7 +32,7 @@ export function usePollScan() {
 
       retryCount.current += 1;
       if (retryCount.current >= MAX_RETRIES) {
-        setError('Scan timed out after 60 seconds');
+        setError('Scan status polling timed out after 180 seconds');
         stopPolling();
         return;
       }

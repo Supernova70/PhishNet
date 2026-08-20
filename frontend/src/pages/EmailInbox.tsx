@@ -15,6 +15,7 @@ import {
   File,
 } from 'lucide-react';
 import { getEmails, getEmail, fetchEmails } from '../api/client';
+import { usePollScan } from '../hooks/usePollScan';
 
 import { LoadingDots } from '../components/ui/LoadingDots';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -110,10 +111,30 @@ function RunScanButton({ emailId, alreadyScanned, onComplete }: { emailId: numbe
   const [scanError, setScanError] = useState<string>('');
   const [scanId, setScanId] = useState<number | null>(null);
   const [verdict, setVerdict] = useState<{ final_score: number; classification: string; ai_score?: number; url_score?: number; attachment_score?: number } | null>(null);
+  const { scan: polledScan, error: pollError, startPolling } = usePollScan();
 
   useEffect(() => {
     if (alreadyScanned) setState('complete');
   }, [alreadyScanned, emailId]);
+
+  useEffect(() => {
+    if (state !== 'scanning' || !polledScan) return;
+    if (polledScan.status === 'complete') {
+      setVerdict(polledScan.verdict);
+      setState('complete');
+      onComplete();
+    } else if (polledScan.status === 'error') {
+      setScanError('The background scan failed. Check backend logs for details.');
+      setState('failed');
+    }
+  }, [polledScan, state, onComplete]);
+
+  useEffect(() => {
+    if (state === 'scanning' && pollError) {
+      setScanError(pollError);
+      setState('failed');
+    }
+  }, [pollError, state]);
 
   const handleScan = async () => {
     if (state !== 'idle' && state !== 'failed') return;
@@ -138,12 +159,9 @@ function RunScanButton({ emailId, alreadyScanned, onComplete }: { emailId: numbe
         return;
       }
 
-      // Synchronous success — response has {status: 'complete', scan_id, email_id, verdict}
-      if (data.status === 'complete' || data.status === 'success') {
-        setScanId(data.scan_id ?? data.id ?? null);
-        setVerdict(data.verdict ?? null);
-        setState('complete');
-        onComplete();
+      if (data.status === 'queued' && data.scan_id) {
+        setScanId(data.scan_id);
+        startPolling(data.scan_id);
       } else {
         setScanError('Unexpected response from server');
         setState('failed');
@@ -191,7 +209,7 @@ function RunScanButton({ emailId, alreadyScanned, onComplete }: { emailId: numbe
       {/* Scanning indicator */}
       {state === 'scanning' && (
         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          Analyzing email content…
+          Scan #{scanId ?? '…'} is running in the background…
         </p>
       )}
 
