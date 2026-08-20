@@ -29,3 +29,4 @@ Thumbs.db
 *.csv
 
 .agent/
+graphify-out/
