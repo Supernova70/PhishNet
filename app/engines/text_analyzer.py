@@ -6,6 +6,7 @@ and predicts whether email text is phishing or legitimate.
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Optional
 from functools import lru_cache
@@ -16,6 +17,30 @@ import joblib
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Phishing classification threshold — raised from 50% to 65% to reduce false positives.
+# The model was trained on cleaned text; raw emails with placement drives, deadlines,
+# and registration links can score 50-65% without being phishing.
+PHISHING_THRESHOLD = 65.0
+
+
+def _clean_text(text: str) -> str:
+    """
+    Preprocess email text the same way as during model training.
+
+    Without this, the model receives raw HTML/RTF and produces unreliable predictions
+    because the TF-IDF vocabulary was trained on cleaned text.
+    """
+    if not text:
+        return ""
+    text = re.sub(r"<[^>]+>", " ", text)                    # strip HTML tags
+    text = re.sub(r"https?://\S+", " [URL] ", text)         # replace URLs with token
+    text = re.sub(r"www\.\S+", " [URL] ", text)             # replace www URLs
+    text = re.sub(r"\S+@\S+\.\S+", " [EMAIL] ", text)      # replace emails with token
+    text = re.sub(r"[^a-zA-Z0-9\s\[\].,!?]", " ", text)   # remove non-alphanumeric
+    text = text.lower()
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 @dataclass
@@ -52,7 +77,7 @@ class TextAnalyzer:
         Analyze text and return phishing probability.
 
         Args:
-            text: Email body text (plain text preferred, HTML stripped)
+            text: Email body text (plain text or HTML)
 
         Returns:
             TextAnalysisResult with confidence score and label
@@ -65,15 +90,18 @@ class TextAnalyzer:
             )
 
         try:
+            # Apply same preprocessing as training — critical for accurate predictions
+            cleaned = _clean_text(text)
+
             if hasattr(self.model, "predict_proba"):
-                probs = self.model.predict_proba([text])[0]
+                probs = self.model.predict_proba([cleaned])[0]
                 phishing_prob = float(probs[1])  # Class 1 = phishing
             else:
-                prediction = self.model.predict([text])[0]
+                prediction = self.model.predict([cleaned])[0]
                 phishing_prob = 1.0 if prediction == 1 else 0.0
 
             confidence = round(phishing_prob * 100, 2)
-            is_phishing = confidence > 50.0
+            is_phishing = confidence > PHISHING_THRESHOLD
 
             return TextAnalysisResult(
                 is_phishing=is_phishing,

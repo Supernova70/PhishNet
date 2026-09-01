@@ -476,7 +476,7 @@ def _run_auto_scan():
         try:
             from app.services.email_service import EmailService
             email_service = EmailService(db)
-            new_count = email_service.fetch_emails()
+            new_count, total = email_service.fetch_and_store()
 
             if new_count > 0:
                 from app.models.email import Email as EmailModel
@@ -486,14 +486,21 @@ def _run_auto_scan():
                     .filter(Scan.id.is_(None))
                     .all()
                 )
-                scan_service = ScanService(db)
                 for email in unsanned:
                     try:
-                        scan_service.trigger_scan(email.id)
+                        scan = Scan(
+                            email_id=email.id,
+                            status=ScanStatus.PENDING.value,
+                            started_at=None,
+                        )
+                        db.add(scan)
+                        db.commit()
+                        db.refresh(scan)
+                        _run_scan_task(scan.id)
                     except Exception as e:
                         logger.warning(f"Auto-scan failed for email {email.id}: {e}")
 
-            logger.info(f"Auto-scan complete: {new_count} new emails fetched")
+            logger.info(f"Auto-scan complete: {new_count} new emails fetched, {total} total")
         finally:
             db.close()
     except Exception as e:

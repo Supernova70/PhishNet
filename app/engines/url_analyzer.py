@@ -270,42 +270,49 @@ class UrlAnalyzer:
         parsed = urlparse(normalized_url)
         hostname = parsed.netloc.split(":")[0]
 
-        # Check 1: HTTP scheme (+15)
+        parts = hostname.split(".")
+        tld = f".{parts[-1]}" if len(parts) > 1 else ""
+        registered_domain = registrable_domain(normalized_url) or hostname
+
+        # ── Domain whitelist: known-safe institutional/TLD categories ──
+        institutional_tlds = {
+            ".edu", ".edu.in", ".ac.in", ".ac.uk", ".gov", ".gov.in",
+            ".mil", ".org", ".go.jp", ".gob", ".gouv",
+        }
+        is_institutional = any(registered_domain.endswith(tld) for tld in institutional_tlds)
+
+        # Known legitimate CDNs/services that contain brand names as substrings
+        brand_whitelist_domains = {
+            "amazonaws.com", "googleapis.com", "google.com", "cloudfront.net",
+            "akamai.net", "akamaized.net", "fastly.net", "fastly.com",
+            "cloudflare.com", "azure.com", "azurewebsites.net",
+            "github.io", "github.com", "gitlab.io",
+            "s3.amazonaws.com", "console.aws.amazon.com",
+        }
+        is_known_service = any(
+            registered_domain == d or registered_domain.endswith(f".{d}")
+            for d in brand_whitelist_domains
+        )
+
+        # Check 1: HTTP scheme (+15, reduced for institutional)
         if parsed.scheme == "http":
-            score += 15
-            res.heuristic_flags.append("Unencrypted HTTP connection")
+            if is_institutional:
+                score += 3  # Much lower penalty for .edu/.gov HTTP
+                res.heuristic_flags.append("HTTP connection (institutional domain — low risk)")
+            else:
+                score += 15
+                res.heuristic_flags.append("Unencrypted HTTP connection")
 
         # Check 2: IP hostname (+35)
         if re.match(r"^(\d{1,3}\.){3}\d{1,3}$", hostname):
             score += 35
             res.heuristic_flags.append(f"IP address used as hostname: {hostname}")
 
-        parts = hostname.split(".")
-        tld = f".{parts[-1]}" if len(parts) > 1 else ""
-        registered_domain = registrable_domain(normalized_url) or hostname
-
         # Check 3: Suspicious TLD (+20)
         suspicious_tlds = {
-            ".tk",
-            ".ml",
-            ".ga",
-            ".cf",
-            ".gq",
-            ".xyz",
-            ".top",
-            ".click",
-            ".work",
-            ".site",
-            ".online",
-            ".live",
-            ".link",
-            ".bid",
-            ".win",
-            ".download",
-            ".loan",
-            ".gdn",
-            ".rest",
-            ".bar",
+            ".tk", ".ml", ".ga", ".cf", ".gq", ".xyz", ".top", ".click",
+            ".work", ".site", ".online", ".live", ".link", ".bid", ".win",
+            ".download", ".loan", ".gdn", ".rest", ".bar",
         }
         if tld in suspicious_tlds:
             score += 20
@@ -313,69 +320,62 @@ class UrlAnalyzer:
 
         # Check 4: URL shortener (+20)
         shorteners = {
-            "bit.ly",
-            "tinyurl.com",
-            "t.co",
-            "ow.ly",
-            "goo.gl",
-            "short.link",
-            "rebrand.ly",
-            "cutt.ly",
-            "is.gd",
-            "buff.ly",
-            "tiny.cc",
-            "adf.ly",
+            "bit.ly", "tinyurl.com", "t.co", "ow.ly", "goo.gl",
+            "short.link", "rebrand.ly", "cutt.ly", "is.gd",
+            "buff.ly", "tiny.cc", "adf.ly",
         }
         if registered_domain in shorteners:
             score += 20
             res.is_shortener = True
             res.heuristic_flags.append(f"URL shortener detected: {registered_domain}")
 
-        # Check 5: Brand impersonation (+40)
-        brands = [
-            (r"paypa[l1]", "paypal.com"),
-            (r"g[o0]{2}gle", "google.com"),
-            (r"amaz[o0]n", "amazon.com"),
-            (r"[a4]pp[l1]e", "apple.com"),
-            (r"micr[o0]s[o0]ft", "microsoft.com"),
-            (r"netfl[i1]x", "netflix.com"),
-            (r"fac[e3]b[o0]{2}k", "facebook.com"),
-            (r"ch[a4]se", "chase.com"),
-            (r"we[l1]{2}sfarg[o0]", "wellsfargo.com"),
-        ]
-        brand_matched = False
-        for pattern, real_domain in brands:
-            if re.search(pattern, hostname) and registered_domain != real_domain:
-                match_str = re.search(pattern, hostname).group(0)
-                score += 40
-                res.heuristic_flags.append(
-                    f"Brand impersonation: '{match_str}' in host but domain is '{registered_domain}'"
-                )
-                brand_matched = True
-                break
+        # Check 5: Brand impersonation (+40) — uses word boundaries, skips known services
+        if not is_known_service:
+            brands = [
+                (r"\bpaypa[l1]\b", "paypal.com"),
+                (r"\bg[o0]{2}gle\b", "google.com"),
+                (r"\bamaz[o0]n\b(?!aws)", "amazon.com"),  # Negative lookahead for amazonaws
+                (r"\b[a4]pp[l1]e\b", "apple.com"),
+                (r"\bmicr[o0]s[o0]ft\b", "microsoft.com"),
+                (r"\bnetfl[i1]x\b", "netflix.com"),
+                (r"\bfac[e3]b[o0]{2}k\b", "facebook.com"),
+                (r"\bch[a4]se\b", "chase.com"),
+                (r"\bwe[l1]{2}sfarg[o0]\b", "wellsfargo.com"),
+            ]
+            for pattern, real_domain in brands:
+                if re.search(pattern, hostname) and registered_domain != real_domain:
+                    match_str = re.search(pattern, hostname).group(0)
+                    score += 40
+                    res.heuristic_flags.append(
+                        f"Brand impersonation: '{match_str}' in host but domain is '{registered_domain}'"
+                    )
+                    break
 
-        # Check 6: Excessive subdomains (+15)
-        if len(parts) >= 4 and not brand_matched:
+        # Check 6: Excessive subdomains (+15, raised threshold for institutional)
+        subdomain_threshold = 5 if is_institutional else 4
+        if len(parts) >= subdomain_threshold:
             score += 15
             res.heuristic_flags.append(
                 f"Excessive subdomains ({len(parts)} levels): {hostname}"
             )
 
-        # Check 7: Long URL (+10)
-        if len(original_url) > 200:
+        # Check 7: Long URL (+10, raised threshold for known services)
+        long_url_threshold = 400 if is_known_service else 200
+        if len(original_url) > long_url_threshold:
             score += 10
             res.heuristic_flags.append(
                 f"Unusually long URL ({len(original_url)} chars)"
             )
 
-        # Check 8: High path entropy (+15)
+        # Check 8: High path entropy (+15, raised threshold)
         path = parsed.path
         if path and len(path) > 10:
             counts = Counter(path)
             entropy = -sum(
                 (c / len(path)) * math.log2(c / len(path)) for c in counts.values()
             )
-            if entropy > 4.5:
+            entropy_threshold = 5.5 if is_known_service else 5.0
+            if entropy > entropy_threshold:
                 score += 15
                 res.heuristic_flags.append(
                     f"High-entropy path (entropy={entropy:.2f}) — possible obfuscation"

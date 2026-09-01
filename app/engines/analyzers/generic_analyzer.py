@@ -38,6 +38,30 @@ DOUBLE_EXT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Known-safe file magic signatures — these are expected to have high entropy
+# and may contain MZ-like byte sequences in compressed data
+SAFE_MAGIC_SIGNATURES = {
+    b"\x89PNG": "PNG",
+    b"\xff\xd8\xff": "JPEG",
+    b"GIF8": "GIF",
+    b"PK\x03\x04": "ZIP",
+    b"\x1f\x8b": "GZIP",
+    b"%PDF": "PDF",
+    b"RIFF": "RIFF (AVI/WAV)",
+    b"\x1a\x45\xdf\xa3": "MKV/WebM",
+}
+
+
+def _detect_file_type(data: bytes) -> str | None:
+    """Detect file type from magic bytes. Returns type name or None."""
+    for magic, name in SAFE_MAGIC_SIGNATURES.items():
+        if data[:len(magic)] == magic:
+            return name
+    # MP4/MOV: "ftyp" at offset 4
+    if len(data) > 8 and data[4:8] == b"ftyp":
+        return "MP4/MOV"
+    return None
+
 
 def _shannon_entropy(data: bytes) -> float:
     """Calculate Shannon entropy of a byte sequence. Returns value 0.0–8.0."""
@@ -76,29 +100,48 @@ def analyze_generic(data: bytes, filename: str) -> FileAnalysisResult:
         "is_script": False,
     }
 
+    # Detect known-safe file types — reduce false positives for these
+    detected_type = _detect_file_type(data)
+    is_safe_binary = detected_type is not None
+
     try:
         # ── 1. Entropy analysis ───────────────────────────────────
         entropy = _shannon_entropy(data)
         indicators["entropy"] = entropy
 
-        if entropy >= ENTROPY_HIGH:
-            findings.append(
-                f"Very high file entropy ({entropy:.2f}/8.0) — file appears packed or encrypted"
-            )
-            risk_score += 35.0
-        elif entropy >= ENTROPY_WARN:
-            findings.append(f"Elevated file entropy ({entropy:.2f}/8.0) — possible obfuscation")
-            risk_score += 15.0
+        if is_safe_binary:
+            # Known-safe binary formats (PNG, JPEG, ZIP, etc.) naturally have
+            # high entropy from compression — only flag extreme values
+            if entropy >= 7.8:
+                findings.append(
+                    f"Very high entropy for {detected_type} file ({entropy:.2f}/8.0) — unusual"
+                )
+                risk_score += 10.0
+            # Don't flag normal elevated entropy for safe formats
+        else:
+            if entropy >= ENTROPY_HIGH:
+                findings.append(
+                    f"Very high file entropy ({entropy:.2f}/8.0) — file appears packed or encrypted"
+                )
+                risk_score += 35.0
+            elif entropy >= ENTROPY_WARN:
+                findings.append(f"Elevated file entropy ({entropy:.2f}/8.0) — possible obfuscation")
+                risk_score += 15.0
 
         # ── 2. Embedded PE header ─────────────────────────────────
         # MZ header (PE magic) embedded inside a non-PE file is a classic dropper trick
+        # BUT: binary formats like PNG/JPEG/ZIP can contain 'MZ' bytes in compressed data
         mz_count = data.count(b"MZ")
         if mz_count > 0:
-            indicators["has_embedded_pe"] = True
-            findings.append(
-                f"Embedded PE magic bytes (MZ) found {mz_count}× inside file — possible dropper"
-            )
-            risk_score += 40.0
+            if is_safe_binary:
+                # For known-safe formats, MZ in compressed data is normal — skip
+                pass
+            else:
+                indicators["has_embedded_pe"] = True
+                findings.append(
+                    f"Embedded PE magic bytes (MZ) found {mz_count}× inside file — possible dropper"
+                )
+                risk_score += 40.0
 
         # ── 3. Double extension ───────────────────────────────────
         if DOUBLE_EXT_PATTERN.search(filename):
