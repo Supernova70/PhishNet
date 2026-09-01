@@ -107,7 +107,7 @@ export function ActiveScans() {
 
   const fetchScans = async () => {
     try {
-      const r = await fetch('http://127.0.0.1:8080/scans?limit=50');
+      const r = await fetch('/api/scans?limit=50');
       const data = await r.json();
       setScans(data.scans ?? []);
       setLastUpdated(new Date());
@@ -151,7 +151,7 @@ export function ActiveScans() {
   const handleRetry = async (scan: Scan) => {
     setRetrying(scan.email_id);
     try {
-      await fetch(`http://127.0.0.1:8080/scans/${scan.email_id}`, { method: 'POST' });
+      await fetch(`/api/scans/${scan.email_id}`, { method: 'POST' });
       await fetchScans();
     } catch {
       // ignore

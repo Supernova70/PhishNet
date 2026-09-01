@@ -290,56 +290,97 @@ docker exec pg-backend python scripts/ingest_eml.py --force
 
 ---
 
+## Stopping and Starting the EC2 Instance
+
+To save costs, you can stop your EC2 instance when not in use. All data persists on the EBS volume.
+
+### Before Stopping (Graceful Shutdown)
+
+```bash
+cd ~/PhishNet
+./shutdown.sh
+```
+
+This stops all Docker containers safely. Then you can stop the instance from the AWS Console.
+
+### After Starting the Instance Again
+
+```bash
+cd ~/PhishNet
+./startup.sh
+```
+
+This will:
+1. Start Docker
+2. Start all containers
+3. Print your **new public IP** with access URLs
+
+> **Note:** Your public IP changes each time you stop/start. The startup script shows the new one. No code changes are needed — the frontend uses relative URLs (`/api/...`) through nginx, so it works with any IP.
+
+### What Persists Across Stops/Starts
+
+| Resource | Persists? |
+|----------|-----------|
+| Project files (`/home/ubuntu/PhishNet`) | Yes (EBS) |
+| Docker images | Yes (EBS) |
+| Database data | Yes (Docker volume on EBS) |
+| Swap space | No (recreated by startup script) |
+| Docker service | No (restarted by startup script) |
+
+---
+
 ## Useful Commands
+
+> **Note:** All `docker compose` commands below should be wrapped with `sg docker -c "..."` if you're not in a docker group session. The startup/shutdown scripts handle this automatically.
 
 ### View Logs
 ```bash
 # All services
-docker compose -f docker-compose.prod.yml logs -f
+sg docker -c "docker compose -f docker-compose.prod.yml logs -f"
 
 # Just backend
-docker compose -f docker-compose.prod.yml logs -f backend
+sg docker -c "docker compose -f docker-compose.prod.yml logs -f backend"
 
 # Just nginx
-docker compose -f docker-compose.prod.yml logs -f nginx
+sg docker -c "docker compose -f docker-compose.prod.yml logs -f nginx"
 
 # Database
-docker compose -f docker-compose.prod.yml logs -f postgres
+sg docker -c "docker compose -f docker-compose.prod.yml logs -f postgres"
 ```
 
 ### Restart Services
 ```bash
 # Restart everything
-docker compose -f docker-compose.prod.yml restart
+sg docker -c "docker compose -f docker-compose.prod.yml restart"
 
 # Restart just backend (after code changes)
-docker compose -f docker-compose.prod.yml restart backend
+sg docker -c "docker compose -f docker-compose.prod.yml restart backend"
 ```
 
 ### Stop Everything
 ```bash
-docker compose -f docker-compose.prod.yml down
+sg docker -c "docker compose -f docker-compose.prod.yml down"
 ```
 
 ### Full Rebuild (after code updates)
 ```bash
-docker compose -f docker-compose.prod.yml down
-docker compose -f docker-compose.prod.yml up -d --build
+sg docker -c "docker compose -f docker-compose.prod.yml down"
+sg docker -c "docker compose -f docker-compose.prod.yml up -d --build"
 ```
 
 ### Enter a Container (debugging)
 ```bash
 # Shell into backend
-docker exec -it pg-backend bash
+sg docker -c "docker exec -it pg-backend bash"
 
 # Shell into database
-docker exec -it pg-db psql -U phishing_user -d phishing_guard
+sg docker -c "docker exec -it pg-db psql -U phishing_user -d phishing_guard"
 ```
 
 ### Check Disk Usage
 ```bash
 df -h
-docker system df
+sg docker -c "docker system df"
 ```
 
 ---
@@ -354,8 +395,8 @@ cd Minor-project
 git pull origin main
 
 # Rebuild and restart
-docker compose -f docker-compose.prod.yml down
-docker compose -f docker-compose.prod.yml up -d --build
+sg docker -c "docker compose -f docker-compose.prod.yml down"
+sg docker -c "docker compose -f docker-compose.prod.yml up -d --build"
 ```
 
 ---
@@ -368,6 +409,12 @@ sudo systemctl start docker
 sudo systemctl enable docker
 ```
 
+### "Permission denied while trying to connect to Docker"
+```bash
+# Use sg docker to run commands in the docker group
+sg docker -c "docker compose -f docker-compose.prod.yml ps"
+```
+
 ### "Port 80 already in use"
 ```bash
 # Check what's using port 80
@@ -378,20 +425,20 @@ sudo lsof -i :80
 ### Backend container keeps restarting
 ```bash
 # Check logs
-docker compose -f docker-compose.prod.yml logs backend
+sg docker -c "docker compose -f docker-compose.prod.yml logs backend"
 
 # Common fix: run migrations manually
-docker exec pg-backend alembic upgrade head
+sg docker -c "docker exec pg-backend alembic upgrade head"
 ```
 
 ### Database connection errors
 ```bash
 # Check if postgres is healthy
-docker compose -f docker-compose.prod.yml ps postgres
+sg docker -c "docker compose -f docker-compose.prod.yml ps postgres"
 
 # Reset database (WARNING: deletes all data)
-docker compose -f docker-compose.prod.yml down -v
-docker compose -f docker-compose.prod.yml up -d --build
+sg docker -c "docker compose -f docker-compose.prod.yml down -v"
+sg docker -c "docker compose -f docker-compose.prod.yml up -d --build"
 ```
 
 ### Out of memory on t3.micro
@@ -464,8 +511,8 @@ icacls "phishing-guard-key.pem" /inheritance:r /grant:r "%USERNAME%:R"
 ## Security Checklist
 
 - [ ] SSH access restricted to "My IP" (not 0.0.0.0/0)
-- [ ] Strong `DB_PASSWORD` set in `.env`
-- [ ] `.env` file not committed to Git (it's in `.gitignore`)
+- [ ] Strong `DB_PASSWORD` set in `.env.prod`
+- [ ] `.env.prod` file not committed to Git (it's in `.gitignore`)
 - [ ] Email App Password used (not real Gmail password)
 - [ ] No API keys committed to repository
 - [ ] Instance has only ports 22, 80, 443 open
@@ -480,5 +527,7 @@ icacls "phishing-guard-key.pem" /inheritance:r /grant:r "%USERNAME%:R"
 | **API Docs** | `http://YOUR_PUBLIC_IP/docs` |
 | **Health Check** | `http://YOUR_PUBLIC_IP/health` |
 | **SSH Command** | `ssh -i "phishing-guard-key.pem" ubuntu@YOUR_PUBLIC_IP` |
-| **Docker Compose** | `docker compose -f docker-compose.prod.yml` |
-| **Project Directory** | `/home/ubuntu/Minor-project` |
+| **Docker Compose** | `sg docker -c "docker compose -f docker-compose.prod.yml ..."` |
+| **Shutdown** | `./shutdown.sh` |
+| **Startup** | `./startup.sh` |
+| **Project Directory** | `/home/ubuntu/PhishNet` |

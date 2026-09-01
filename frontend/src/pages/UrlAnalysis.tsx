@@ -282,7 +282,7 @@ export function UrlAnalysis() {
   useEffect(() => {
     const load = async () => {
       try {
-        const r = await fetch('http://127.0.0.1:8080/scans?limit=200');
+        const r = await fetch('/api/scans?limit=200');
         const data = await r.json();
         setScans(data.scans ?? []);
       } catch {

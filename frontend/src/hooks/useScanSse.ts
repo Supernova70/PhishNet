@@ -59,7 +59,7 @@ export function useScanSse({
     if (!enabled || !scanId) return;
     cleanup();
 
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
     const es = new EventSource(`${baseUrl}/api/scans/${scanId}/events`);
     eventSourceRef.current = es;
 
@@ -127,7 +127,7 @@ export function subscribeToGlobalScans(listener: GlobalListener): () => void {
   globalListeners.add(listener);
 
   if (!globalEventSource) {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
     globalEventSource = new EventSource(`${baseUrl}/api/scans/events`);
     globalEventSource.onmessage = (e) => {
       try {
@@ -143,7 +143,7 @@ export function subscribeToGlobalScans(listener: GlobalListener): () => void {
       // Retry after 5s
       setTimeout(() => {
         if (globalListeners.size > 0) {
-          const baseUrl2 = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+          const baseUrl2 = import.meta.env.VITE_API_BASE_URL || '';
           globalEventSource = new EventSource(`${baseUrl2}/api/scans/events`);
         }
       }, 5000);

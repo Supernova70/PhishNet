@@ -6,12 +6,13 @@ import type {
   HealthStatus,
   FetchEmailsResponse,
   ScanTriggerResponse,
+  Classification,
 } from '../types';
 
 // ─── Axios Instance ───────────────────────────────────────────────────────────
 
 export const apiClient = axios.create({
-  baseURL: 'http://127.0.0.1:8080',
+  baseURL: '/api',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -135,7 +136,7 @@ export interface AttachmentSummary {
   email_subject: string;
   email_sender: string;
   latest_scan_score: number | null;
-  latest_classification: string | null;
+  latest_classification: Classification | null;
 }
 
 export interface AttachmentDetail extends AttachmentSummary {

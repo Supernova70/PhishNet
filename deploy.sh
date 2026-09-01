@@ -6,27 +6,26 @@
 #
 #  What this script does:
 #    1. Installs Docker (if not already installed)
-#    2. Creates .env from .env.prod template (if missing)
-#    3. Builds and starts all services
-#    4. Runs database migrations
+#    2. Validates environment configuration
+#    3. Allocates swap space for low-RAM instances
+#    4. Builds and starts all services
 #    5. Verifies deployment health
 # =============================================================================
 
 set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo -e "${BLUE}╔══════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║        Phishing Guard V2 — Production Deployment        ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# ── Step 1: Check Docker ─────────────────────────────────────────────────────
+# ── Step 1: Install Docker ───────────────────────────────────────────────────
 echo -e "${YELLOW}[1/6] Checking Docker installation...${NC}"
 if ! command -v docker &> /dev/null; then
     echo -e "${RED}Docker not found. Installing...${NC}"
@@ -53,28 +52,17 @@ if ! docker compose version &> /dev/null; then
 fi
 echo -e "${GREEN}Docker Compose: $(docker compose version --short)${NC}"
 
-# ── Step 3: Create .env if missing ───────────────────────────────────────────
+# ── Step 3: Validate .env configuration ──────────────────────────────────────
 echo -e "${YELLOW}[3/6] Checking environment configuration...${NC}"
-if [ ! -f .env ]; then
-    if [ -f .env.prod ]; then
-        cp .env.prod .env
-        echo -e "${YELLOW}Created .env from .env.prod template.${NC}"
-        echo -e "${RED}>>> IMPORTANT: Edit .env to set your credentials!${NC}"
-        echo -e "${RED}>>> Run: nano .env${NC}"
-        echo -e "${RED}>>> Required: DB_PASSWORD, EMAIL_ADDRESS, EMAIL_PASSWORD${NC}"
-        echo ""
-        read -p "Press Enter after editing .env (or Ctrl+C to edit now)..."
-    else
-        echo -e "${RED}ERROR: No .env or .env.prod file found!${NC}"
-        exit 1
-    fi
-else
-    echo -e "${GREEN}.env file exists.${NC}"
+if [ ! -f .env.prod ]; then
+    echo -e "${RED}ERROR: .env.prod file not found!${NC}"
+    exit 1
 fi
+echo -e "${GREEN}.env.prod found.${NC}"
 
-# ── Step 4: Check required env vars ──────────────────────────────────────────
+# ── Step 4: Validate required env vars ───────────────────────────────────────
 echo -e "${YELLOW}[4/6] Validating configuration...${NC}"
-source .env 2>/dev/null || true
+source .env.prod 2>/dev/null || true
 
 missing=()
 [ -z "$DB_PASSWORD" ] && missing+=("DB_PASSWORD")
@@ -82,13 +70,12 @@ missing=()
 [ -z "$EMAIL_PASSWORD" ] && missing+=("EMAIL_PASSWORD")
 
 if [ ${#missing[@]} -gt 0 ]; then
-    echo -e "${RED}ERROR: Missing required environment variables:${NC}"
+    echo -e "${RED}ERROR: Missing required environment variables in .env.prod:${NC}"
     for var in "${missing[@]}"; do
         echo -e "${RED}  - $var${NC}"
     done
     echo ""
-    echo -e "${YELLOW}Edit .env and set these values:${NC}"
-    echo -e "${YELLOW}  nano .env${NC}"
+    echo -e "${YELLOW}Edit: nano .env.prod${NC}"
     exit 1
 fi
 echo -e "${GREEN}Configuration valid.${NC}"
@@ -96,7 +83,7 @@ echo -e "${GREEN}Configuration valid.${NC}"
 # ── Step 5: Allocate swap (for t3.micro with 1GB RAM) ───────────────────────
 echo -e "${YELLOW}[5/6] Checking swap space...${NC}"
 if [ $(swapon --show | wc -l) -eq 0 ]; then
-    echo -e "${YELLOW}No swap detected. Allocating 2GB swap (recommended for 1GB RAM)...${NC}"
+    echo -e "${YELLOW}No swap detected. Allocating 2GB swap...${NC}"
     sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
     sudo chmod 600 /swapfile
     sudo mkswap /swapfile
@@ -111,15 +98,12 @@ fi
 echo -e "${YELLOW}[6/6] Building and starting services...${NC}"
 echo ""
 
-# Stop any existing containers
-docker compose -f docker-compose.prod.yml down 2>/dev/null || true
-
-# Build and start
-docker compose -f docker-compose.prod.yml up -d --build
+sg docker -c "docker compose -f docker-compose.prod.yml down 2>/dev/null || true"
+sg docker -c "docker compose -f docker-compose.prod.yml up -d --build"
 
 echo ""
 echo -e "${BLUE}Waiting for services to start...${NC}"
-sleep 10
+sleep 15
 
 # ── Verify deployment ────────────────────────────────────────────────────────
 echo ""
@@ -128,24 +112,22 @@ echo -e "${BLUE}║                  Deployment Status                      ║$
 echo -e "${BLUE}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Check containers
-docker compose -f docker-compose.prod.yml ps
-
+sg docker -c "docker compose -f docker-compose.prod.yml ps"
 echo ""
 
-# Test health endpoint
+# Get public IP
+PUBLIC_IP=$(curl -s http://checkip.amazonaws.com 2>/dev/null || echo "UNAVAILABLE")
+
+# Test health
 echo -e "${YELLOW}Testing health endpoint...${NC}"
 for i in {1..5}; do
-    if curl -s http://localhost/health > /dev/null 2>&1; then
-        echo -e "${GREEN}✓ Backend is healthy!${NC}"
+    if curl -s http://localhost/api/health > /dev/null 2>&1; then
+        echo -e "${GREEN}Backend is healthy!${NC}"
         echo ""
         echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
         echo -e "${GREEN}║              DEPLOYMENT SUCCESSFUL!                     ║${NC}"
         echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
         echo ""
-
-        # Get public IP
-        PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "YOUR_PUBLIC_IP")
         echo -e "${BLUE}Web App:     http://${PUBLIC_IP}${NC}"
         echo -e "${BLUE}API Docs:    http://${PUBLIC_IP}/docs${NC}"
         echo -e "${BLUE}Health:      http://${PUBLIC_IP}/health${NC}"
@@ -156,20 +138,19 @@ for i in {1..5}; do
     sleep 5
 done
 
-# Final check
-if ! curl -s http://localhost/health > /dev/null 2>&1; then
+if ! curl -s http://localhost/api/health > /dev/null 2>&1; then
     echo -e "${RED}╔══════════════════════════════════════════════════════════╗${NC}"
     echo -e "${RED}║              DEPLOYMENT MAY HAVE ISSUES                 ║${NC}"
     echo -e "${RED}╚══════════════════════════════════════════════════════════╝${NC}"
     echo ""
     echo -e "${YELLOW}Check logs:${NC}"
-    echo -e "${YELLOW}  docker compose -f docker-compose.prod.yml logs${NC}"
+    echo -e "${YELLOW}  sg docker -c \"docker compose -f docker-compose.prod.yml logs\"${NC}"
     echo ""
     echo -e "${YELLOW}Common fixes:${NC}"
-    echo -e "${YELLOW}  1. Edit .env:  nano .env${NC}"
-    echo -e "${YELLOW}  2. Rebuild:    docker compose -f docker-compose.prod.yml up -d --build${NC}"
-    echo -e "${YELLOW}  3. Logs:       docker compose -f docker-compose.prod.yml logs -f backend${NC}"
+    echo -e "${YELLOW}  1. Edit config:  nano .env.prod${NC}"
+    echo -e "${YELLOW}  2. Rebuild:      sg docker -c \"docker compose -f docker-compose.prod.yml up -d --build\"${NC}"
+    echo -e "${YELLOW}  3. Logs:         sg docker -c \"docker compose -f docker-compose.prod.yml logs -f backend\"${NC}"
 fi
 
 echo ""
-echo -e "${GREEN}Done! 🎉${NC}"
+echo -e "${GREEN}Done!${NC}"
