@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,6 +13,7 @@ import {
 import { ScoreBadge, ClassificationBadge } from '../components/ui/Badge';
 import { formatDistanceToNow } from 'date-fns';
 import type { Scan } from '../types';
+import { subscribeToGlobalScans, type GlobalScanUpdate } from '../hooks/useScanSse';
 
 // ─── Elapsed Timer ─────────────────────────────────────────────────────────────
 function ElapsedTimer({ startedAt }: { startedAt: string | null }) {
@@ -123,6 +124,22 @@ export function ActiveScans() {
     intervalRef.current = setInterval(fetchScans, 5000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
+
+  // Real-time SSE subscription for instant scan updates
+  const handleScanUpdate = useCallback((update: GlobalScanUpdate) => {
+    setScans((prev) =>
+      prev.map((s) =>
+        s.id === update.scan_id
+          ? { ...s, status: 'complete' as const, verdict: s.verdict ?? { id: 0, scan_id: s.id, final_score: update.final_score ?? 0, classification: (update.classification as 'safe' | 'suspicious' | 'dangerous') ?? 'safe', ai_score: 0, ai_label: null, url_score: 0, attachment_score: 0, breakdown: null, created_at: new Date().toISOString() } }
+          : s
+      )
+    );
+  }, []);
+
+  useEffect(() => {
+    const unsub = subscribeToGlobalScans(handleScanUpdate);
+    return unsub;
+  }, [handleScanUpdate]);
 
   // Count-up timer since last update
   useEffect(() => {

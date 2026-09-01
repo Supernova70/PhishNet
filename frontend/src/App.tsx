@@ -7,6 +7,8 @@ import { ScanDetail } from './pages/ScanDetail';
 import { HealthPage } from './pages/HealthPage';
 import { ActiveScans } from './pages/ActiveScans';
 import { UrlAnalysis } from './pages/UrlAnalysis';
+import { AttachmentsPage } from './pages/AttachmentsPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { SystemHealthProvider } from './hooks/useSystemHealth';
 
 // ─── Placeholder pages for nav items without full pages ──────────────────────
@@ -32,9 +34,9 @@ export default function App() {
           <Route path="scans" element={<ScanResults />} />
           <Route path="scans/:id" element={<ScanDetail />} />
           <Route path="url-analysis" element={<UrlAnalysis />} />
-          <Route path="attachments" element={<PlaceholderPage title="Attachments" />} />
+          <Route path="attachments" element={<AttachmentsPage />} />
           <Route path="health" element={<HealthPage />} />
-          <Route path="settings" element={<PlaceholderPage title="Settings" />} />
+          <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
         </Routes>

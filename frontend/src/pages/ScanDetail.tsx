@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Brain, Link2, Paperclip, ExternalLink, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
-import { getScan, getEmail, resolveScreenshotUrl } from '../api/client';
+import { ArrowLeft, Brain, Link2, Paperclip, ExternalLink, AlertTriangle, ChevronDown, ChevronRight, ShieldAlert } from 'lucide-react';
+import { getScan, getEmail, resolveScreenshotUrl, getThreatSummary, type ThreatSummary } from '../api/client';
 import { ClassificationBadge, ScoreBadge } from '../components/ui/Badge';
 import { ScoreBar } from '../components/ui/ScoreBar';
 import { ScoreGauge } from '../components/ui/ScoreGauge';
@@ -218,6 +218,119 @@ function YaraMatchCard({ match }: { match: { rule: string; severity: string; tag
   );
 }
 
+// ─── AI Threat Summary Card ───────────────────────────────────────────────────
+function ThreatSummaryCard({ scanId }: { scanId: number }) {
+  const [summary, setSummary] = useState<ThreatSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getThreatSummary(scanId)
+      .then(setSummary)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load'))
+      .finally(() => setLoading(false));
+  }, [scanId]);
+
+  if (loading) {
+    return (
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 8, padding: 20 }}>
+        <div className="skeleton" style={{ height: 16, width: '30%', borderRadius: 4, marginBottom: 12 }} />
+        <div className="skeleton" style={{ height: 12, width: '100%', borderRadius: 4, marginBottom: 8 }} />
+        <div className="skeleton" style={{ height: 12, width: '80%', borderRadius: 4 }} />
+      </div>
+    );
+  }
+
+  if (error || !summary) return null;
+
+  const borderColor = summary.classification === 'dangerous'
+    ? 'var(--danger)' : summary.classification === 'suspicious'
+    ? 'var(--warning)' : 'var(--safe)';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={{
+        background: 'var(--bg-card)',
+        border: `1px solid ${borderColor}`,
+        borderRadius: 8,
+        padding: 24,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <ShieldAlert size={20} style={{ color: borderColor }} />
+        <p style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+          AI Threat Analysis
+        </p>
+      </div>
+
+      {/* Summary Paragraph */}
+      <p style={{
+        fontSize: '0.875rem',
+        color: 'var(--text-secondary)',
+        lineHeight: 1.7,
+        background: 'var(--bg-input)',
+        borderLeft: `3px solid ${borderColor}`,
+        padding: '12px 16px',
+        borderRadius: '0 6px 6px 0',
+      }}>
+        {summary.summary}
+      </p>
+
+      {/* Key Findings */}
+      {summary.key_findings.length > 0 && (
+        <div>
+          <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+            Key Findings
+          </p>
+          <ul style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingLeft: 0, listStyle: 'none' }}>
+            {summary.key_findings.map((finding, i) => (
+              <li key={i} style={{
+                fontSize: '0.8rem',
+                color: 'var(--text-secondary)',
+                padding: '6px 10px',
+                background: 'var(--bg-input)',
+                borderRadius: 4,
+                borderLeft: '2px solid var(--primary)',
+              }}>
+                {finding}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Risk Factors */}
+      {summary.risk_factors.length > 0 && (
+        <div>
+          <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+            Risk Factors
+          </p>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {summary.risk_factors.map((rf, i) => (
+              <span key={i} style={{
+                fontSize: '0.7rem',
+                fontWeight: 600,
+                padding: '3px 10px',
+                borderRadius: 4,
+                background: rf.severity === 'high' ? 'var(--danger-subtle)' : 'var(--warning-subtle)',
+                color: rf.severity === 'high' ? 'var(--text-danger)' : 'var(--text-warning)',
+                border: `1px solid ${rf.severity === 'high' ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`,
+              }}>
+                {rf.engine}: {rf.detail}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 // ─── Scan Detail Page ─────────────────────────────────────────────────────────
 export function ScanDetail() {
   const { id } = useParams<{ id: string }>();
@@ -277,6 +390,9 @@ export function ScanDetail() {
           <p style={{ color: 'var(--text-muted)' }}>Scan status: <strong style={{ color: 'var(--text-primary)', textTransform: 'capitalize' }}>{scan.status}</strong></p>
         </div>
       )}
+
+      {/* AI Threat Summary */}
+      {v && <ThreatSummaryCard scanId={scan.id} />}
 
       {/* Email Info */}
       {email && (

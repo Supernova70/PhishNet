@@ -92,6 +92,94 @@ export const runScan = async (emailId: number): Promise<ScanTriggerResponse> => 
   return data;
 };
 
+// ─── Bulk Scan ────────────────────────────────────────────────────────────────
+
+export interface BulkScanResponse {
+  status: string;
+  total_queued: number;
+  scan_ids: number[];
+}
+
+export const bulkScan = async (emailIds: number[]): Promise<BulkScanResponse> => {
+  const { data } = await apiClient.post<BulkScanResponse>('/emails/bulk-scan', {
+    email_ids: emailIds,
+  });
+  return data;
+};
+
+// ─── AI Threat Summary ────────────────────────────────────────────────────────
+
+export interface ThreatSummary {
+  scan_id: number;
+  classification: string;
+  final_score: number;
+  summary: string;
+  key_findings: string[];
+  risk_factors: { engine: string; severity: string; detail: string }[];
+}
+
+export const getThreatSummary = async (scanId: number): Promise<ThreatSummary> => {
+  const { data } = await apiClient.get<ThreatSummary>(`/scans/${scanId}/summary`);
+  return data;
+};
+
+// ─── Attachments ──────────────────────────────────────────────────────────────
+
+export interface AttachmentSummary {
+  id: number;
+  email_id: number;
+  filename: string;
+  content_type: string | null;
+  size_bytes: number;
+  sha256_hash: string | null;
+  email_subject: string;
+  email_sender: string;
+  latest_scan_score: number | null;
+  latest_classification: string | null;
+}
+
+export interface AttachmentDetail extends AttachmentSummary {
+  storage_path: string | null;
+  email_date: string | null;
+  scan_results: Array<{
+    scan_id: number;
+    scan_status: string;
+    final_score: number;
+    classification: string;
+    file_analysis: Record<string, unknown>;
+  }>;
+}
+
+export const getAttachments = async (skip = 0, limit = 50): Promise<AttachmentSummary[]> => {
+  const { data } = await apiClient.get<{ total: number; attachments: AttachmentSummary[] }>('/attachments', {
+    params: { skip, limit },
+  });
+  return data.attachments ?? [];
+};
+
+export const getAttachmentDetail = async (id: number): Promise<AttachmentDetail> => {
+  const { data } = await apiClient.get<AttachmentDetail>(`/attachments/${id}`);
+  return data;
+};
+
+// ─── Export ───────────────────────────────────────────────────────────────────
+
+export const exportScansCsv = async (classification?: string): Promise<void> => {
+  const params = classification ? { classification } : {};
+  const { data } = await apiClient.get('/scans/export/csv', {
+    params,
+    responseType: 'blob',
+  });
+  const url = window.URL.createObjectURL(new Blob([data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', 'phishing_guard_scans.csv');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 // ─── Backend status check ─────────────────────────────────────────────────────
 
 export const checkBackendOnline = async (): Promise<boolean> => {

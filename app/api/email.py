@@ -1,11 +1,15 @@
 """Email API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.dependencies import SessionLocal, get_db
 from app.models.email import Email
-from app.models.scan import Scan
+from app.models.scan import Scan, ScanStatus
 from app.schemas.email import (
     EmailOut,
     EmailDetailOut,
@@ -15,6 +19,7 @@ from app.schemas.email import (
 from app.schemas.scan import ScanOut
 from app.services.email_service import EmailService
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/emails", tags=["Emails"])
 
 
@@ -113,3 +118,84 @@ async def get_latest_scan(email_id: int, db: Session = Depends(get_db)):
     if scan:
         return ScanOut(**scan.to_dict())
     return {"scan": None}
+
+
+# ── Bulk Scan ──────────────────────────────────────────────
+
+def _run_bulk_scan_task(scan_ids: list[int]) -> None:
+    """Run multiple scans using task-owned DB sessions."""
+    from app.services.scan_service import ScanService
+
+    for scan_id in scan_ids:
+        db = SessionLocal()
+        try:
+            ScanService(db).run_scan_by_id(scan_id)
+        except Exception:
+            logger.exception("Background bulk scan %s failed", scan_id)
+            db.rollback()
+            scan = db.query(Scan).filter(Scan.id == scan_id).first()
+            if scan:
+                scan.status = ScanStatus.ERROR.value
+                scan.completed_at = datetime.now(UTC).replace(tzinfo=None)
+                db.commit()
+        finally:
+            db.close()
+
+
+class BulkScanRequest(BaseModel):
+    email_ids: list[int] = []
+
+
+class BulkScanResponse(BaseModel):
+    status: str
+    total_queued: int
+    scan_ids: list[int]
+
+
+@router.post("/bulk-scan", response_model=BulkScanResponse)
+async def bulk_scan(
+    request: BulkScanRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Trigger scans on multiple emails at once.
+
+    Pass email_ids in the body, or omit to scan all unscanned emails.
+    """
+    if request.email_ids:
+        emails = (
+            db.query(Email)
+            .filter(Email.id.in_(request.email_ids))
+            .all()
+        )
+    else:
+        emails = (
+            db.query(Email)
+            .filter(~Email.scans.any())
+            .all()
+        )
+
+    if not emails:
+        raise HTTPException(status_code=404, detail="No unscanned emails found")
+
+    scan_ids = []
+    for email in emails:
+        scan = Scan(
+            email_id=email.id,
+            status=ScanStatus.PENDING.value,
+            started_at=None,
+        )
+        db.add(scan)
+        db.flush()
+        scan_ids.append(scan.id)
+
+    db.commit()
+
+    background_tasks.add_task(_run_bulk_scan_task, scan_ids)
+
+    return BulkScanResponse(
+        status="queued",
+        total_queued=len(scan_ids),
+        scan_ids=scan_ids,
+    )

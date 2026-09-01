@@ -194,6 +194,21 @@ class ScanService:
             self.db.commit()
             self.db.refresh(scan)
 
+            # Publish SSE event for real-time updates
+            try:
+                from app.api.scan import publish_scan_event
+                publish_scan_event(scan.id, {
+                    "type": "complete",
+                    "scan_id": scan.id,
+                    "classification": classification,
+                    "final_score": final_score,
+                    "ai_score": ai_score,
+                    "url_score": url_score,
+                    "attachment_score": attachment_score,
+                })
+            except Exception:
+                pass  # SSE publish failure should not block scan
+
             logger.info(
                 f"Scan {scan.id} complete: "
                 f"ai={ai_score:.1f} url={url_score:.1f} att={attachment_score:.1f} "

@@ -14,7 +14,7 @@ import {
   Code,
   File,
 } from 'lucide-react';
-import { getEmails, getEmail, fetchEmails } from '../api/client';
+import { getEmails, getEmail, fetchEmails, bulkScan } from '../api/client';
 import { usePollScan } from '../hooks/usePollScan';
 
 import { LoadingDots } from '../components/ui/LoadingDots';
@@ -408,6 +408,9 @@ export function EmailInbox() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
   const [, setError] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkScanning, setBulkScanning] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ queued: number; done: number } | null>(null);
 
   const loadEmails = async () => {
     setLoading(true);
@@ -435,6 +438,43 @@ export function EmailInbox() {
       await loadEmails();
     } finally {
       setFetching(false);
+    }
+  };
+
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((e) => e.id)));
+    }
+  };
+
+  const handleBulkScan = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setBulkScanning(true);
+    setBulkProgress({ queued: ids.length, done: 0 });
+    try {
+      await bulkScan(ids);
+      setBulkProgress({ queued: ids.length, done: ids.length });
+      setSelectedIds(new Set());
+      setTimeout(() => {
+        setBulkProgress(null);
+        loadEmails();
+      }, 2000);
+    } catch {
+      setBulkProgress(null);
+    } finally {
+      setBulkScanning(false);
     }
   };
 
@@ -474,7 +514,16 @@ export function EmailInbox() {
             </button>
           </div>
           {/* Filter Pills */}
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', marginRight: 4 }}>
+              <input
+                type="checkbox"
+                checked={selectedIds.size === filtered.length && filtered.length > 0}
+                onChange={toggleSelectAll}
+                style={{ width: 14, height: 14, accentColor: 'var(--primary)' }}
+              />
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>All</span>
+            </label>
             {(['all', 'has_attachments', 'scanned', 'unscanned'] as FilterType[]).map((f) => (
               <button
                 key={f}
@@ -499,6 +548,44 @@ export function EmailInbox() {
           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
             Showing {filtered.length} of {emails.length} emails
           </span>
+          {/* Bulk Actions */}
+          {selectedIds.size > 0 && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', background: 'var(--primary-glow)', borderRadius: 6, border: '1px solid var(--primary)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700 }}>
+                {selectedIds.size} selected
+              </span>
+              <button
+                onClick={handleBulkScan}
+                disabled={bulkScanning}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  borderRadius: 4,
+                  border: '1px solid var(--primary)',
+                  background: bulkScanning ? 'var(--bg-input)' : 'var(--primary)',
+                  color: bulkScanning ? 'var(--primary)' : 'white',
+                  cursor: bulkScanning ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {bulkScanning ? '⏳' : '⚡'} {bulkScanning ? 'Scanning…' : 'Scan Selected'}
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                style={{ padding: '4px 8px', fontSize: '0.75rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                Clear
+              </button>
+            </div>
+          )}
+          {bulkProgress && !bulkScanning && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--safe)', fontWeight: 600 }}>
+              ✓ {bulkProgress.done} scan{bulkProgress.done !== 1 ? 's' : ''} queued
+            </div>
+          )}
         </div>
 
         {/* Email List */}
@@ -543,6 +630,13 @@ export function EmailInbox() {
                     onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-input)'; }}
                     onMouseLeave={(e) => { if (!isSelected) (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
                   >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(email.id)}
+                      onClick={(e) => { e.stopPropagation(); toggleSelect(email.id); }}
+                      onChange={() => {}}
+                      style={{ width: 16, height: 16, marginTop: 10, accentColor: 'var(--primary)', cursor: 'pointer', flexShrink: 0 }}
+                    />
                     <SenderAvatar sender={email.sender} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>

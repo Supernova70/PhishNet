@@ -9,8 +9,9 @@ import {
   Brain,
   Link2,
   Paperclip,
+  Download,
 } from 'lucide-react';
-import { getEmails, getScans } from '../api/client';
+import { getEmails, getScans, exportScansCsv } from '../api/client';
 import { useCountUp } from '../hooks/useCountUp';
 import { ClassificationBadge, ScoreBadge } from '../components/ui/Badge';
 import { ThreatTimeline } from '../components/charts/ThreatTimeline';
@@ -282,9 +283,21 @@ export function Dashboard() {
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <p style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>Recent Scan Activity</p>
-          <button className="btn-ghost" onClick={() => navigate('/scans')} style={{ fontSize: '0.75rem', padding: '4px 12px' }}>
-            View All
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn-ghost"
+              onClick={async () => {
+                try { await exportScansCsv(); } catch { /* silent */ }
+              }}
+              style={{ fontSize: '0.75rem', padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Download size={12} />
+              Export CSV
+            </button>
+            <button className="btn-ghost" onClick={() => navigate('/scans')} style={{ fontSize: '0.75rem', padding: '4px 12px' }}>
+              View All
+            </button>
+          </div>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <RecentActivity scans={scans} emails={emails} onViewScan={(id) => navigate(`/scans/${id}`)} />
