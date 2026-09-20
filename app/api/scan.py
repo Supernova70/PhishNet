@@ -7,6 +7,7 @@ import io
 import logging
 import threading
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import UTC, datetime
 from typing import AsyncGenerator
 
@@ -24,12 +25,24 @@ from app.services.scan_service import ScanService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/scans", tags=["Scans"])
 
+SCAN_TIMEOUT_SECONDS = 120
+
 
 def _run_scan_task(scan_id: int) -> None:
     """Run a scan after the HTTP response using a task-owned DB session."""
     db = SessionLocal()
     try:
-        ScanService(db).run_scan_by_id(scan_id)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(ScanService(db).run_scan_by_id, scan_id)
+            future.result(timeout=SCAN_TIMEOUT_SECONDS)
+    except FuturesTimeoutError:
+        logger.error("Scan %s timed out after %ds — marking as error", scan_id, SCAN_TIMEOUT_SECONDS)
+        db.rollback()
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if scan:
+            scan.status = ScanStatus.ERROR.value
+            scan.completed_at = datetime.now(UTC).replace(tzinfo=None)
+            db.commit()
     except Exception:
         logger.exception("Background scan %s failed", scan_id)
         db.rollback()

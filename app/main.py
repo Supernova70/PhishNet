@@ -23,6 +23,27 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info("Schema managed by Alembic — run: alembic upgrade head")
+
+    # Reset any scans stuck in RUNNING state from a previous crash/restart
+    try:
+        from app.dependencies import SessionLocal
+        from app.models.scan import Scan, ScanStatus
+        db = SessionLocal()
+        stuck = (
+            db.query(Scan)
+            .filter(Scan.status == ScanStatus.RUNNING.value)
+            .all()
+        )
+        if stuck:
+            for scan in stuck:
+                scan.status = ScanStatus.ERROR.value
+                scan.completed_at = datetime.utcnow()
+            db.commit()
+            logger.warning("Reset %d stuck RUNNING scan(s) to ERROR on startup", len(stuck))
+        db.close()
+    except Exception as e:
+        logger.error("Failed to reset stuck scans: %s", e)
+
     yield
     logger.info("Shutting down")
 

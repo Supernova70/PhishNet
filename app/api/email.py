@@ -1,6 +1,7 @@
 """Email API endpoints."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -21,6 +22,8 @@ from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/emails", tags=["Emails"])
+
+SCAN_TIMEOUT_SECONDS = 120
 
 
 @router.post("/fetch", response_model=FetchEmailsResponse)
@@ -123,13 +126,23 @@ async def get_latest_scan(email_id: int, db: Session = Depends(get_db)):
 # ── Bulk Scan ──────────────────────────────────────────────
 
 def _run_bulk_scan_task(scan_ids: list[int]) -> None:
-    """Run multiple scans using task-owned DB sessions."""
+    """Run multiple scans using task-owned DB sessions with per-scan timeout."""
     from app.services.scan_service import ScanService
 
     for scan_id in scan_ids:
         db = SessionLocal()
         try:
-            ScanService(db).run_scan_by_id(scan_id)
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(ScanService(db).run_scan_by_id, scan_id)
+                future.result(timeout=SCAN_TIMEOUT_SECONDS)
+        except FuturesTimeoutError:
+            logger.error("Scan %s timed out after %ds — marking as error", scan_id, SCAN_TIMEOUT_SECONDS)
+            db.rollback()
+            scan = db.query(Scan).filter(Scan.id == scan_id).first()
+            if scan:
+                scan.status = ScanStatus.ERROR.value
+                scan.completed_at = datetime.now(UTC).replace(tzinfo=None)
+                db.commit()
         except Exception:
             logger.exception("Background bulk scan %s failed", scan_id)
             db.rollback()
