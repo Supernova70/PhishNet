@@ -195,6 +195,26 @@ body {
   color: var(--text-secondary);
 }
 
+/* Clickable table cell (e.g. campaign name opens the detail page) */
+.link-cell-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.link-cell-btn:hover .link-cell-title {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
 /* ─── Input Base ────────────────────────────────────────────────────────────── */
 .dark-input {
   background: var(--bg-input);

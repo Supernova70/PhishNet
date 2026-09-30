@@ -4,7 +4,6 @@ import {
   Megaphone,
   RefreshCw,
   ArrowLeft,
-  ExternalLink,
   AlertCircle,
   Search,
   Save,
@@ -386,15 +385,19 @@ function CampaignsList() {
                 <th>Confidence</th>
                 <th>Status</th>
                 <th>Last seen</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
               {visibleCampaigns.map((c) => (
                 <tr key={c.id}>
                   <td>
-                    <p style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</p>
-                    <p className="font-mono" style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>#{c.id}</p>
+                    <button
+                      className="link-cell-btn"
+                      onClick={() => navigate(`/campaigns/${c.id}`)}
+                    >
+                      <span className="link-cell-title" style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</span>
+                      <span className="font-mono" style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>#{c.id}</span>
+                    </button>
                   </td>
                   <td className="font-mono" style={{ fontSize: '0.78rem' }}>{c.email_count}</td>
                   <td><ScoreBadge score={c.avg_score} size="sm" /></td>
@@ -415,14 +418,6 @@ function CampaignsList() {
                   </td>
                   <td style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     {c.last_seen ? formatDistanceToNow(new Date(c.last_seen), { addSuffix: true }) : '—'}
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => navigate(`/campaigns/${c.id}`)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'transparent', border: '1px solid var(--primary)', borderRadius: 4, color: 'var(--primary)', padding: '3px 10px', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}
-                    >
-                      Open <ExternalLink size={11} />
-                    </button>
                   </td>
                 </tr>
               ))}
