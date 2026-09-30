@@ -510,8 +510,8 @@ export function EmailInbox() {
   const [bulkScanning, setBulkScanning] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ queued: number; done: number } | null>(null);
 
-  const loadEmails = async () => {
-    setLoading(true);
+  const loadEmails = async (opts?: { quiet?: boolean }) => {
+    if (!opts?.quiet) setLoading(true);
     try {
       const data = await getEmails(0, 100);
       // Sort newest first (fetched_at DESC) as a client-side safety net
@@ -521,11 +521,11 @@ export function EmailInbox() {
         return dateB - dateA; // descending — newest first
       });
       setEmails(sorted);
-      if (sorted.length > 0 && !selectedId) setSelectedId(sorted[0].id);
+      if (!opts?.quiet && sorted.length > 0 && !selectedId) setSelectedId(sorted[0].id);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
-      setLoading(false);
+      if (!opts?.quiet) setLoading(false);
     }
   };
 
@@ -577,6 +577,17 @@ export function EmailInbox() {
   };
 
   useEffect(() => { loadEmails(); }, []);
+
+  // Keep scan-status chips fresh while background scans are queued/running.
+  const hasActiveScans = emails.some(
+    (e) => e.latest_scan_status === 'pending' || e.latest_scan_status === 'running'
+  );
+  useEffect(() => {
+    if (!hasActiveScans) return;
+    const t = setInterval(() => { void loadEmails({ quiet: true }); }, 4000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveScans]);
 
   const filtered = useMemo(() => {
     let list = emails;
