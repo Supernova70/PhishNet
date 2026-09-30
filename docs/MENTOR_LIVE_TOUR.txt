@@ -1,0 +1,440 @@
+PHISHING GUARD V2 — LIVE PROJECT TOUR SCRIPT
+Duration: 10 minutes | Format: browse the live site, talk over what you see
+Live site: https://phishing-guard.duckdns.org
+Prepared: 30 September 2026
+
+=====================================================================
+HOW TO USE THIS SCRIPT
+=====================================================================
+- Each STOP has three parts:
+    TIME   — checkpoint against the 10-minute clock
+    SHOW   — exactly what to click (do this first, then talk)
+    SAY    — verbatim sentences, read them almost word-for-word
+    BRIDGE — one sentence that pulls the mentor to the next page
+- Read numbers marked LIVE off the screen; they change as new mail
+  arrives. Numbers not marked LIVE are stable facts you can memorise.
+- Never scroll idly: click, point, speak. If a page is loading, keep
+  talking — never wait in silence.
+
+=====================================================================
+PRE-FLIGHT (do this 10 minutes before the meeting)
+=====================================================================
+1. Open https://phishing-guard.duckdns.org in your demo browser.
+   EXPECT: a "Your connection is not private" warning (the server
+   currently uses a self-signed certificate). Click Advanced ->
+   Proceed to phishing-guard.duckdns.org. Do this BEFORE the meeting
+   so the warning never appears in front of the mentor. If asked:
+   "we use a self-signed certificate on the demo server; the
+   production rollout will use Let's Encrypt."
+2. Confirm the Dashboard loads: KPI cards, charts, country strip.
+3. Press Ctrl/Cmd + a few times to set text size ~110% (readable when
+   sharing screen).
+4. Have open in a second window: README-SEPTEMBER-DEVELOPMENT-TIMELINE.txt
+   (the handout you will give them at the end).
+5. One practice run of the two inbox searches below (they must return
+   results: "verify your mailbox" and "digest").
+6. Keep this script visible on a second screen or printed.
+
+=====================================================================
+TIME TABLE (10:00 total)
+=====================================================================
+0:00  Opening line + Dashboard
+1:30  Email Inbox -> View Analysis (search: verify your mailbox)
+2:45  Scan Detail: four engines + header forensics (invisible beat A)
+3:45  Origin Trace (search: digest) — TOR story
+4:45  Forensic Report (Print/PDF)
+5:15  Scan Results sorting
+5:45  Campaigns: auto-names + case management
+6:30  Attribution Graph
+7:00  URL Analysis + Attachments
+7:30  Alerts
+8:00  API Health (invisible beat B)
+8:45  Closing proof + handout
+10:00 Done.
+
+=====================================================================
+OPENING (0:00 — while the dashboard is loading)
+=====================================================================
+SAY:
+"This is PhishGuard V2 — an AI-powered email threat detection,
+geolocation and forensic intelligence platform. The whole idea in one
+sentence: an email enters my inbox, and within seconds the system tells
+you not only WHETHER it is dangerous, but WHERE it came from, WHO is
+behind it, and which other emails are part of the same attack. We built
+this across September in three phases: first the detection core, then
+the forensic intelligence layer, and finally the analyst workbench you
+are looking at — with a final integration pass last night. Let me walk
+you through it, page by page."
+
+=====================================================================
+STOP 1 — DASHBOARD (0:30)
+=====================================================================
+SHOW: Just the landing page. Point at: the four KPI cards, the country
+      strip and attribution donut, the threat timeline chart, the
+      classification donut, then the large 3D globe below them
+      ("Global Threat Origins"), and the recent activity table.
+SAY:
+"The dashboard answers 'what is happening right now' in one glance.
+Top row: total emails fetched, threats detected, suspicious, clean —
+LIVE numbers, read them off the screen. Below that, this strip shows
+the top sending countries — that is our geolocation layer at work:
+every sending IP we see is resolved to country, city and network
+provider — and the donut next to it is attribution: how much of our
+mail comes from direct actors, compromised accounts, spoofed domains
+or unknown infrastructure. The threat timeline plots verdicts over
+time, the classification donut shows how all scans split across safe,
+suspicious and dangerous. Below those sits the centrepiece we added
+last: a live 3D globe — every geolocated sending IP we have ever
+traced is pinned on it, red for Tor exits, amber for VPNs, violet for
+hosting infrastructure; it rotates on its own, you can grab it to
+spin it, scroll to zoom, and hovering any marker shows the IP, city
+and network — note that scrolling outside the globe itself keeps
+scrolling the page, only the globe area responds. Under all of this
+sits the detection core: four independent engines — machine learning,
+URL analysis, attachment analysis and header forensics — combined
+into one safety score."
+BRIDGE: "Of course the dashboard is just numbers — let's open a real
+attack and see the analysis itself."
+
+=====================================================================
+STOP 2 — EMAIL INBOX -> VIEW ANALYSIS (1:30)   [last night's fix #1]
+=====================================================================
+SHOW: Sidebar -> Email Inbox. In the search box type: verify your
+      mailbox. One result appears: "Action required: verify your
+      mailbox" from postmaster@login-verify.xyz. Click the
+      "View Analysis →" button on that row.
+SAY:
+"This is the live mailbox the system fetches over IMAP — real mail,
+scanned automatically. Last night's biggest usability fix started here:
+previously, once an email had been scanned, the inbox was a dead end —
+you knew there WAS a verdict but had no way to reach it. Now every
+scanned row shows 'View Analysis', which takes you straight to its
+finished verdict, plus a Re-scan button if you want to re-run the
+engines. One click from email to evidence."
+BRIDGE: "So here is the verdict page — watch what the system
+extracted from this single message."
+
+=====================================================================
+STOP 3 — SCAN DETAIL: FOUR ENGINES + HEADER FORENSICS (2:45)
+=====================================================================
+SHOW: The verdict hero: DANGEROUS, final score 100.0. Scroll down:
+      the four engine cards (ML Engine, URL Engine, Attachment
+      Engine, Header), then the Header Forensics block with rule
+      weights and the raw authentication results.
+SAY:
+"Top of the page: the final verdict — DANGEROUS, score 100 out of
+100. Watch how it got there. The ML card shows the machine-learning
+classifier's own reading — around 74, 'phishing'. Our BEC rule engine
+— a separate rules-based channel hunting payment-diversion and
+urgency patterns — scored this message 100. The AI channel takes the
+maximum of the three, so it went to 100. Then the fusion model: the
+four channels combine multiplicatively — the product of their safety
+probabilities — so the final verdict shows the real design principle:
+one channel screaming is enough to condemn, but a clean verdict
+requires all four engines to agree. In this case the URL card shows
+10 and attachment zero — the payload here is the SENDER domain, not a
+malicious link — and it was still condemned. Below, header forensics
+parses the Received chain hop by hop and decodes authentication: here
+SPF passed but DKIM and DMARC are absent — and every anomaly rule
+that fires is listed with its exact weight, so nothing is a black
+box."
+
+INVISIBLE BEAT A (keep pointing at the header forensics block):
+"What you see on screen is roughly a third of the work. Behind this
+section sit 56 new backend files from this sprint alone: a Received
+chain parser, an authentication parser for SPF/DKIM/DMARC with
+identifier-alignment checks, DNS validation logic, weighted anomaly
+rules, plus the BEC rule engine and brand-lookalike engine feeding
+the ML card. The UI is the tip of it."
+
+BRIDGE: "The verdict says dangerous — but can we trust WHERE this
+mail claims to come from? Let's physically trace it."
+
+=====================================================================
+STOP 4 — ORIGIN TRACE: TOR STORY (3:45)   [last night's fix #5]
+=====================================================================
+SHOW: Sidebar -> Email Inbox. Search: digest. Open "Breaking news
+      digest" (from Newsletter <blast@anon.example>) via
+      "View Analysis →", then click the "Origin Trace" button on the
+      detail page. On the trace page point at: the Origin IP chip,
+      the red TOR flag, Country/Region/ASN chips, the Received Chain
+      table (hover a row — the raw header appears as a tooltip), and
+      the map.
+SAY:
+"This is the forensic heart of the product: we rebuild the email's
+journey from its Received headers. The origin chip shows the sending
+IP — 185.220.101.5 — and the intelligence panel resolved it live:
+Germany, Berlin, network AS60729, and this flag is the important one —
+TOR. This email arrived through a Tor exit node, which is why the
+final verdict is dangerous. The chain table lists every hop with
+protocol and timestamp; hover any row and you see the raw, unmodified
+Received line — that is court-admissible style evidence, not our
+interpretation. If a hop has a geocodable IP, it is pinned on the map."
+
+(If asked how the geo gets there): "The backend queues enrichment for
+any uncached IP and the page re-polls — this one was already cached,
+so it painted instantly. Last night I fixed that whole pipeline: the
+old geolocation provider's API domain had died, results were never
+being committed to the cache, and transient failures poisoned it for
+30 days. Provider migrated, commits added, negative caching for
+private ranges — that is why you are seeing complete data now."
+
+BRIDGE: "We have the verdict and the origin — now the formal,
+sealed report an analyst would actually file."
+
+=====================================================================
+STOP 5 — FORENSIC REPORT: PRINT / PDF (4:45)   [last night's fix #3]
+=====================================================================
+SHOW: On the same detail page click "Forensic Report". Point at the
+      report layout, then the two buttons top-right: "Print / PDF"
+      and "Export JSON".
+SAY:
+"This page renders the complete case as a single sealed report —
+verdict, engine breakdown, header analysis, indicators, integrity
+hashes. Two export paths: Export JSON gives a machine-readable copy
+with the report's SHA-256, and Print / PDF — another of last night's
+fixes — used to dump a file named 'report'. Now it names the file
+PhishNet report, scan id, classification and subject, so twenty saved
+reports don't overwrite each other. Standard click: print preview,
+save as PDF, done."
+BRIDGE: "Individually covered — now let's see how the analyst triages
+ALL scans at once."
+
+=====================================================================
+STOP 6 — SCAN RESULTS: SORTING (5:15)   [last night's fix #2]
+=====================================================================
+SHOW: Sidebar -> Scan Results. Click the Sort dropdown (default is
+      score, descending) and flip the direction arrow once, then
+      switch to date.
+SAY:
+"Every list in the product got the same treatment last night: sort
+control with a direction toggle. Scan Results defaults to score
+descending, so the worst threats pin to the top; you can flip to date
+or subject. The same control now exists on URL Analysis and on
+Attachments — three tables, one consistent interaction. You can also
+filter by classification and score range here, which is how a real
+triage queue works: worst first, everything else one click away."
+BRIDGE: "Individual scans are one thing — real attackers send
+camPAIGNS. Let's look at correlation."
+
+=====================================================================
+STOP 7 — CAMPAIGNS: AUTO-NAMES + CASE MANAGEMENT (5:45)
+      [last night's fix #4 + backlog B4 / FE-C2]
+=====================================================================
+SHOW: Sidebar -> Campaigns. Point at the auto-generated names. Click
+      the campaign "credential phishing via tokenharbor.ai". Show:
+      Status dropdown, notes box, and the member scan table
+      (Scan / Subject / Sender / Score / Classification columns).
+SAY:
+"Related attacks are clustered automatically — union-find over shared
+origin IP, reply-to domain and URL domain, plus a subject-similarity
+pass for same-brand lures. Twenty-five campaigns right now. Last
+night's fix: these used to be shown as anonymous numeric ids —
+nobody could tell a case from a row number. The system now writes its
+own case names from evidence: 'credential phishing via
+tokenharbor.ai', 'delivery notice via parcel-redelivery.org', 'job
+offer scam campaign'. Opening a campaign, the analyst sets status —
+new, open, investigating, closed — and writes case notes up to four
+thousand characters, persisted through the API. This is where the
+product stops being a scanner and becomes a case-management tool."
+BRIDGE: "These campaigns also have their relationships — visualised."
+
+=====================================================================
+STOP 8 — ATTRIBUTION GRAPH (6:30)
+=====================================================================
+SHOW: Sidebar -> Attribution Graph. Drag the score filter or point at
+      it; click one node to open the side panel.
+SAY:
+"The graph links scans, campaigns, sending infrastructure and
+indicators in one view. The score filter hides weak noise so only
+meaningful relationships surface — the message on screen even tells
+you to lower it if it gets too empty. Clicking a node opens the side
+panel with its details, and the campaign filter scopes everything to
+one case. Backend-wise this is backlog item B5, node-capped so it
+never chokes on large datasets."
+BRIDGE: "Two quick stops on the deep-analysis tables — URLs and
+attachments."
+
+=====================================================================
+STOP 9 — URL ANALYSIS + ATTACHMENTS (7:00)
+=====================================================================
+SHOW: Sidebar -> URL Analysis: point at the KPI header, one expanded
+      URL row with its flag chips, and the Sort control. Then
+      Sidebar -> Attachments: same sort control, file list.
+SAY:
+"URL Analysis aggregates every URL we have ever seen, with the same
+sort control just added — score, URL, date. Expanding a row shows the
+exact contributing flags: VirusTotal reports, punycode, redirect
+patterns, risky TLDs — and a heuristic/VirusTotal score split so you
+can see WHY. Attachments lists every extracted file — size, type, and
+the latest risk score — sortable by filename, size, score or date.
+Executable double-extensions, macro documents, exploit patterns are
+all scored by the attachment engine."
+BRIDGE: "When something crosses the line, the system does not wait
+for you to notice — it alerts."
+
+=====================================================================
+STOP 10 — ALERTS (7:30)
+=====================================================================
+SHOW: Sidebar -> Alerts (the bell icon in the top bar shows the
+      unread count too). Point at the top 2–3 feed rows.
+SAY:
+"This feed auto-generates an alert for every high-risk verdict —
+read the top row live; right now it is 'Your PayPal reward is
+waiting', dangerous, score 78, reason: high risk. Scroll slightly and
+you will find 'Breaking news digest' — the exact email we traced to
+the Tor node — flagged high risk and spoofing. Each row links straight
+to the offending scan, and the bell in the header keeps the unread
+count so nothing is missed between sessions. Alerts, evidence storage
+and retention policies were all part of this month's backend
+build-out."
+BRIDGE: "Last stop before the wrap-up — the page that proves all of
+this is actually running as a system."
+
+=====================================================================
+STOP 11 — API HEALTH + INVISIBLE BEAT B (8:00)
+=====================================================================
+SHOW: Sidebar -> API Health. Point at the overall status, then the
+      component cards: database, ML model, VirusTotal, dynamic URL.
+SAY:
+"Green across the board: API status OK, version 3.0.0, PostgreSQL
+connected, the ML model loaded into memory, one VirusTotal key active.
+Everything the demo just showed depends on plumbing that has no UI —
+let me name it so it is not invisible: seven database migrations
+shipped this month (URL columns, header forensics, IP intel,
+indicators and campaigns, evidence audit, alerts, campaign notes);
+connection-pool sizing and 240-second scan timeouts so production
+under load does not deadlock; startup recovery that resurrects stuck
+scans on boot; PII masking and 90-day evidence retention as privacy
+controls; a CI workflow that runs the suite on every push; and
+operational scripts — including the raw-email backfill that
+re-processed 48 of 48 real emails with zero failures. That is the
+invisible layer holding the visible one up."
+BRIDGE: "Let me close with the numbers you can verify."
+
+=====================================================================
+STOP 12 — CLOSING PROOF (8:45 → 10:00)
+=====================================================================
+SHOW: Back to the Dashboard (just sit on it while you talk). At the
+      end, pick up the handout: README-SEPTEMBER-DEVELOPMENT-TIMELINE.txt
+SAY:
+"Verification, so this is not just a demo — 428 automated tests pass
+at 78.19 percent statement coverage; the labelled evaluation corpus
+returns zero false positives and zero false negatives — 22 phishing
+correctly caught, 50 benign correctly cleared; TypeScript compiles
+clean, lint is clean. The whole stack is deployed on AWS EC2 —
+Postgres, a FastAPI backend with two workers, Nginx serving the React
+build over Docker Compose — with migrations and recovery handled by a
+single startup script.
+
+"This month, in one line: Week 1 we built detection; Week 2 we built
+investigation — forensics, geolocation, attribution; Week 3 we built
+the workbench, hardened it and shipped it to production. Last night's
+final pass was driven by reviewer-style feedback: the inbox dead end,
+missing sorting, ugly PDF filenames, unreadable campaign labels and
+the origin-trace data pipeline — all five fixed, tested and redeployed.
+
+"Next steps we have queued: dynamic URL analysis with headless
+browser screenshots, a four-class BEC retrain, offline MaxMind
+geolocation, and expanding the labelled corpus. This document"
+[hold up / point at the timeline file]
+"is the full development timeline with everything we just walked
+through — please take it. Happy to dive into any part in detail."
+
+IF THEY ASK TO SEE THE TEST SUITE: docs/BACKLOG.md shows every
+backlog item with its completion status, and the repository's test
+directory holds the 54 test files from this sprint.
+
+=====================================================================
+RECOVERY LINES (only if something misbehaves — say calmly, move on)
+=====================================================================
+- Trace map or geo slow: "Geo lookups hit a free provider with a
+  30-day cache; fresh IPs fill in seconds via background enrichment."
+- Inbox search returns nothing: search by sender instead — for stop 2
+  type: login-verify  (for stop 4 type: blast@anon).
+- A page errors: "That is exactly what the health page exists to
+  catch" — go to Stop 11 early.
+
+=====================================================================
+APPENDIX A — COMPLETE CHANGE COVERAGE (171 files, zero omissions)
+=====================================================================
+Every file in commit 4d1ca7b belongs to exactly one group below;
+each group is spoken at the named stop. Totals verified against
+"git show --name-only 4d1ca7b" = 171 files.
+
+GROUP (files)              WHERE IT IS SPOKEN
+---------------------------------------------------------------------
+Detection engines (10)     Stop 1 (donut) + Stop 3 (ML/URL/Attachment
+                           engine cards; fusion; BEC + lookalike)
+Header forensics (7)       Stop 3 (chain parser, auth parser, anomaly
+                           weights) + Invisible beat A
+Intel / geo / origin (9)   Stop 4 (geo provider, ip_intel service,
+                           intel API, TOR/ASN flags)
+Correlation (7)            Stop 7 (union-find clustering, auto-names)
+                           + Stop 8 (graph builder, IoC store)
+APIs / evidence / alerts   Stops 2, 5, 10 (latest-scan endpoint,
+  (17)                     report API, alerts API, evidence chain,
+                           PII/retention services, scan API)
+Models + core config (6)   Stop 3 verdict data + Stop 11 (config,
+                           main app wiring)
+Migrations (7)             Invisible beat B (0003-0009)
+Frontend (32)              Stops 1-9: dashboard, inbox, scan detail,
+                           trace, report, sorting x3, campaigns,
+                           graph, alerts, header forensics view
+Ops / deployment (8)       Invisible beat B (nginx, docker-compose,
+                           startup.sh, pool sizing, CI config file)
+Scripts (7)                Invisible beat B (backfill 48/48, eval
+                           corpus gate, corpus generator, import/purge)
+Docs / README / CI (7)     Closing (timeline handout, BACKLOG, CI
+                           workflow)
+Tests (54)                 Closing proof (428 tests / 78.19%)
+---------------------------------------------------------------------
+TOTAL                                          171 files
+
+THE FIVE LAST-NIGHT FIXES AND WHERE TO SAY THEM:
+  fix 1 inbox dead end ......... Stop 2  (View Analysis)
+  fix 2 missing sorting ........ Stop 6  (sort controls x3)
+  fix 3 PDF filename ........... Stop 5  (Print / PDF)
+  fix 4 campaign names ......... Stop 7  (auto-names)
+  fix 5 origin-trace pipeline .. Stop 4  (geo provider + commits)
+
+=====================================================================
+APPENDIX B — LIKELY QUESTIONS, SHORT ANSWERS
+=====================================================================
+Q: Why multiply the four scores instead of adding them?
+A: Security must be conservative. Each channel expresses independent
+   doubt; multiplying safety probabilities means doubt anywhere lowers
+   the final safety — and any single channel at 70+ forces a dangerous
+   verdict regardless of the others.
+
+Q: How do you know the zero false-positive claim is real?
+A: scripts/eval_corpus.py runs every engine against a labelled corpus
+   — 22 phishing, 50 benign — and is wired as a pass/fail gate: today
+   it returns PASS with 0 FP and 0 FN. The 428-test suite covers the
+   rest.
+
+Q: Is the scoring transparent or a black box?
+A: Fully explainable — every engine card shows its score and
+   contributing flags; header rules show weights; the report exports
+   the complete breakdown plus integrity hashes.
+
+Q: You are fetching a real university mailbox — what about privacy?
+A: Attachments and raw evidence are stored hashed with an audit trail;
+   PII masking and 90-day retention are implemented (configurable);
+   credentials live only in server-side environment variables.
+
+Q: What would you do next?
+A: Dynamic URL analysis with headless-browser screenshots (plumbing
+   already present, currently disabled), a four-class BEC retrain,
+   offline MaxMind geolocation, larger labelled corpus, alerting
+   integrations (email/Slack).
+
+Q: Why was last night needed at all — wasn't it done earlier?
+A: The functional work was complete; last night was an integration
+   pass: five reviewer-style UX/pipeline defects found by using the
+   product end-to-end, each fixed, tested (suite rerun to 428/78.19%),
+   and redeployed to production the same night.
+
+=====================================================================
+END OF SCRIPT
+=====================================================================

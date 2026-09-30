@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -23,6 +23,10 @@ import { ThreatTimeline } from '../components/charts/ThreatTimeline';
 import { ClassificationDonut } from '../components/charts/ClassificationDonut';
 import { formatDistanceToNow } from 'date-fns';
 import type { Email, Scan } from '../types';
+
+// Code-split the 3D globe (pulls in three.js) so the dashboard shell
+// loads instantly and the globe chunk arrives in parallel.
+const IpGlobe = lazy(() => import('../components/globe/IpGlobe'));
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 interface KpiCardProps {
@@ -364,6 +368,29 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* 3D threat globe */}
+      <Suspense
+        fallback={
+          <div
+            style={{
+              height: 500,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.8rem',
+              color: 'var(--text-muted)',
+            }}
+          >
+            Loading globe…
+          </div>
+        }
+      >
+        <IpGlobe />
+      </Suspense>
 
       {/* Recent Activity */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 8, overflow: 'hidden' }}>

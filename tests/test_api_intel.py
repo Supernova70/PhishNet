@@ -317,6 +317,37 @@ class TestIpStatsEndpoint:
         assert data["countries"][1] == {"country": "Netherlands", "count": 1}
 
 
+# ── /ips/geo ───────────────────────────────────────────────────────────
+
+class TestIpGeoEndpoint:
+    def test_empty(self, env):
+        data = env["client"].get("/ips/geo").json()
+        assert data == {"points": [], "total_ips": 0, "geoed": 0}
+
+    def test_filters_unlocated_and_flags(self, env):
+        env["db"].add_all([
+            IpIntel(
+                ip="185.220.101.5", country="Germany", country_code="DE",
+                city="Berlin", lat=52.52, lon=13.41, is_tor=True,
+                fetched_at=datetime(2026, 1, 1),
+            ),
+            # No coordinates → must not appear on the globe payload.
+            IpIntel(ip="203.0.113.9", fetched_at=datetime(2026, 1, 1)),
+        ])
+        env["db"].commit()
+        data = env["client"].get("/ips/geo").json()
+        assert data["total_ips"] == 2
+        assert data["geoed"] == 1
+        point = data["points"][0]
+        assert point["ip"] == "185.220.101.5"
+        assert point["lat"] == pytest.approx(52.52)
+        assert point["lng"] == pytest.approx(13.41)
+        assert point["country"] == "Germany"
+        assert point["is_tor"] is True
+        assert point["is_vpn"] is False
+        assert point["is_proxy"] is False
+
+
 # ── /indicators ───────────────────────────────────────────────────────
 
 class TestIndicatorsEndpoint:

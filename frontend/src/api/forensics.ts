@@ -118,6 +118,35 @@ export const getIpStats = async (): Promise<IpStats> => {
   return data;
 };
 
+// ─── IP geo points (3D globe) ──────────────────────────────────────────
+
+export interface IpGeoPoint {
+  ip: string;
+  lat: number;
+  lng: number;
+  country: string | null;
+  country_code: string | null;
+  city: string | null;
+  asn: number | null;
+  asn_org: string | null;
+  is_tor: boolean;
+  is_vpn: boolean;
+  is_proxy: boolean;
+  is_hosting: boolean;
+  is_dnsbl_listed: boolean;
+}
+
+export interface IpGeoResponse {
+  points: IpGeoPoint[];
+  total_ips: number;
+  geoed: number;
+}
+
+export const getIpGeo = async (): Promise<IpGeoResponse> => {
+  const { data } = await apiClient.get<IpGeoResponse>('/ips/geo');
+  return data;
+};
+
 // ─── Attribution graph ───────────────────────────────────────────────────────
 
 export interface GraphNode {

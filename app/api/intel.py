@@ -335,6 +335,42 @@ async def ip_stats(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/ips/geo")
+async def ip_geo_points(db: Session = Depends(get_db)):
+    """Geo-plottable IP points for the dashboard 3D globe (cache-only)."""
+    from sqlalchemy import func
+
+    rows = (
+        db.query(IpIntel)
+        .filter(IpIntel.lat.isnot(None), IpIntel.lon.isnot(None))
+        .order_by(IpIntel.ip.asc())
+        .all()
+    )
+    total = int(db.query(func.count(IpIntel.ip)).scalar() or 0)
+    return {
+        "points": [
+            {
+                "ip": r.ip,
+                "lat": r.lat,
+                "lng": r.lon,
+                "country": r.country,
+                "country_code": r.country_code,
+                "city": r.city,
+                "asn": r.asn,
+                "asn_org": r.asn_org,
+                "is_tor": bool(r.is_tor),
+                "is_vpn": bool(r.is_vpn),
+                "is_proxy": bool(r.is_proxy),
+                "is_hosting": bool(r.is_hosting),
+                "is_dnsbl_listed": bool(r.is_dnsbl_listed),
+            }
+            for r in rows
+        ],
+        "total_ips": total,
+        "geoed": len(rows),
+    }
+
+
 @router.get("/ips/{ip}")
 async def get_ip_intel(
     ip: str,
