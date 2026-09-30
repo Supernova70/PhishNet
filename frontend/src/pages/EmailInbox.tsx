@@ -373,7 +373,7 @@ function RunScanButton({ emailId, alreadyScanned, onComplete }: { emailId: numbe
 function EmailDetailPanel({ emailId, onScanComplete }: { emailId: number; onScanComplete: () => void }) {
   const [detail, setDetail] = useState<EmailDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'text' | 'html'>('text');
+  const [viewMode, setViewMode] = useState<'text' | 'html' | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => setLoading(true));
@@ -391,6 +391,10 @@ function EmailDetailPanel({ emailId, onScanComplete }: { emailId: number; onScan
   if (!detail) return null;
 
   const isScanned = detail.scan_count > 0;
+  // HTML Preview is the default tab (falls back to Plain Text for
+  // text-only emails) until the user picks a tab explicitly.
+  const activeMode: 'text' | 'html' =
+    viewMode ?? (detail.has_html && detail.body_html ? 'html' : 'text');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -426,7 +430,7 @@ function EmailDetailPanel({ emailId, onScanComplete }: { emailId: number; onScan
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Toggle */}
         <div style={{ display: 'flex', gap: 4, background: 'var(--bg-input)', borderRadius: 6, padding: 3, width: 'fit-content' }}>
-          {(['text', 'html'] as const).map((mode) => (
+          {(['html', 'text'] as const).map((mode) => (
             <button
               key={mode}
               onClick={() => setViewMode(mode)}
@@ -437,8 +441,8 @@ function EmailDetailPanel({ emailId, onScanComplete }: { emailId: number; onScan
                 borderRadius: 4,
                 border: 'none',
                 cursor: 'pointer',
-                background: viewMode === mode ? 'var(--bg-card)' : 'transparent',
-                color: viewMode === mode ? 'var(--text-primary)' : 'var(--text-muted)',
+                background: activeMode === mode ? 'var(--bg-card)' : 'transparent',
+                color: activeMode === mode ? 'var(--text-primary)' : 'var(--text-muted)',
                 transition: 'all 200ms',
               }}
             >
@@ -447,7 +451,7 @@ function EmailDetailPanel({ emailId, onScanComplete }: { emailId: number; onScan
           ))}
         </div>
 
-        {viewMode === 'text' ? (
+        {activeMode === 'text' ? (
           <pre className="font-mono" style={{
             fontSize: '0.78rem',
             color: 'var(--text-secondary)',
