@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Brain, Link2, Paperclip, ExternalLink, AlertTriangle, ChevronDown, ChevronRight, ShieldAlert, Radio, FileText } from 'lucide-react';
+import { ArrowLeft, Brain, Link2, Paperclip, ExternalLink, AlertTriangle, ChevronDown, ChevronRight, ShieldAlert, FileText } from 'lucide-react';
 import { getScan, getEmail, resolveScreenshotUrl, getThreatSummary, type ThreatSummary } from '../api/client';
 import { ClassificationBadge, ScoreBadge } from '../components/ui/Badge';
 import { ScoreBar } from '../components/ui/ScoreBar';
@@ -407,13 +407,6 @@ export function ScanDetail() {
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>From: {email.sender} · {email.date ? format(new Date(email.date), 'PPpp') : '—'}</p>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button
-                className="btn-ghost"
-                onClick={() => navigate(`/emails/${scan.email_id}/trace`)}
-                style={{ fontSize: '0.72rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}
-              >
-                <Radio size={12} /> Origin Trace
-              </button>
               <button
                 className="btn-ghost"
                 onClick={() => navigate(`/scans/${scan.id}/report`)}
