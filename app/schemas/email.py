@@ -30,6 +30,9 @@ class EmailOut(BaseModel):
     fetched_at: Optional[datetime] = None
     attachment_count: int = 0
     scan_count: int = 0
+    latest_scan_status: Optional[str] = None
+    latest_scan_classification: Optional[str] = None
+    latest_scan_score: Optional[float] = None
 
     model_config = {"from_attributes": True}
 

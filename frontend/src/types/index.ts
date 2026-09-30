@@ -12,6 +12,9 @@ export interface Email {
   fetched_at: string;
   attachment_count: number;
   scan_count: number;
+  latest_scan_status?: ScanStatus | null;
+  latest_scan_classification?: Classification | null;
+  latest_scan_score?: number | null;
 }
 
 export interface EmailDetail extends Email {

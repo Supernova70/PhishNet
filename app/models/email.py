@@ -49,6 +49,8 @@ class Email(Base):
     )
 
     def to_dict(self) -> dict:
+        latest_scan = max(self.scans, key=lambda s: s.id, default=None)
+        latest_verdict = latest_scan.verdict if latest_scan else None
         return {
             "id": self.id,
             "message_id": self.message_id,
@@ -61,6 +63,11 @@ class Email(Base):
             "fetched_at": self.fetched_at.isoformat() if self.fetched_at else None,
             "attachment_count": len(self.attachments),
             "scan_count": len(self.scans),
+            "latest_scan_status": latest_scan.status if latest_scan else None,
+            "latest_scan_classification": (
+                latest_verdict.classification if latest_verdict else None
+            ),
+            "latest_scan_score": latest_verdict.final_score if latest_verdict else None,
         }
 
 

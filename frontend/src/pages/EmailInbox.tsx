@@ -48,6 +48,60 @@ function SenderAvatar({ sender }: { sender: string }) {
   );
 }
 
+// ─── Scan Status Chip ──────────────────────────────────────────────────────────
+const CHIP_STYLES: Record<string, { label: string; bg: string; color: string; border: string }> = {
+  unscanned: { label: 'Unscanned', bg: 'transparent', color: 'var(--text-muted)', border: 'var(--border-default)' },
+  pending: { label: 'Queued', bg: 'rgba(56,189,248,0.10)', color: '#7DD3FC', border: 'rgba(56,189,248,0.45)' },
+  running: { label: 'Scanning…', bg: 'rgba(56,189,248,0.10)', color: '#7DD3FC', border: 'rgba(56,189,248,0.45)' },
+  error: { label: 'Scan failed', bg: 'rgba(239,68,68,0.10)', color: '#FCA5A5', border: 'rgba(239,68,68,0.45)' },
+  safe: { label: 'Safe', bg: 'rgba(16,185,129,0.12)', color: '#6EE7B7', border: 'rgba(16,185,129,0.5)' },
+  suspicious: { label: 'Suspicious', bg: 'rgba(245,158,11,0.12)', color: '#FCD34D', border: 'rgba(245,158,11,0.5)' },
+  dangerous: { label: 'Dangerous', bg: 'rgba(239,68,68,0.12)', color: '#FCA5A5', border: 'rgba(239,68,68,0.5)' },
+  scanned: { label: 'Scanned', bg: 'rgba(16,185,129,0.12)', color: '#6EE7B7', border: 'rgba(16,185,129,0.5)' },
+};
+
+function ScanStatusChip({ email }: { email: Email }) {
+  let key: string;
+  if (email.scan_count === 0) key = 'unscanned';
+  else if (email.latest_scan_status === 'pending') key = 'pending';
+  else if (email.latest_scan_status === 'running') key = 'running';
+  else if (email.latest_scan_status === 'error') key = 'error';
+  else if (email.latest_scan_status === 'complete' && email.latest_scan_classification)
+    key = email.latest_scan_classification;
+  else if (email.latest_scan_status === 'complete') key = 'scanned';
+  else key = 'unscanned';
+
+  const cfg = CHIP_STYLES[key];
+  return (
+    <span
+      title={
+        key === 'unscanned'
+          ? 'Not scanned yet — open it and run a scan'
+          : key === 'running' || key === 'pending'
+            ? 'Scan queued / running in the background'
+            : key === 'error'
+              ? 'Last scan failed'
+              : `Scanned — ${cfg.label}`
+      }
+      style={{
+        flexShrink: 0,
+        fontSize: '0.58rem',
+        fontWeight: 700,
+        padding: '1px 7px',
+        borderRadius: 9,
+        textTransform: 'uppercase' as const,
+        letterSpacing: '0.05em',
+        whiteSpace: 'nowrap',
+        background: cfg.bg,
+        color: cfg.color,
+        border: `1px solid ${cfg.border}`,
+      }}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
 // ─── File Type Icon ─────────────────────────────────────────────────────────────
 function FileTypeIcon({ filename }: { filename: string; contentType: string | null }) {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
@@ -690,9 +744,12 @@ export function EmailInbox() {
                           </span>
                         </div>
                       </div>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                        {email.subject || '(no subject)'}
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <p style={{ flex: 1, minWidth: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {email.subject || '(no subject)'}
+                        </p>
+                        <ScanStatusChip email={email} />
+                      </div>
                     </div>
                   </motion.div>
                 );

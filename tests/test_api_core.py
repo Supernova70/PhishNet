@@ -80,6 +80,29 @@ class TestEmailEndpoints:
         assert data["total"] == 1
         assert data["emails"][0]["subject"] == "Quarterly report"
 
+    def test_list_emails_includes_latest_scan_status(self, env):
+        seed(env)
+        data = env["client"].get("/emails").json()
+        row = data["emails"][0]
+        assert row["scan_count"] == 1
+        assert row["latest_scan_status"] == "complete"
+        assert row["latest_scan_classification"] == "suspicious"
+        assert row["latest_scan_score"] == 35.0
+
+    def test_list_emails_unscanned_has_null_status(self, env):
+        db = env["db"]
+        db.add(Email(
+            message_id="<core-2>", sender="b@example.org",
+            subject="No scan yet", fetched_at=datetime(2026, 1, 3, 9, 0),
+        ))
+        db.commit()
+        data = env["client"].get("/emails").json()
+        row = data["emails"][0]
+        assert row["scan_count"] == 0
+        assert row["latest_scan_status"] is None
+        assert row["latest_scan_classification"] is None
+        assert row["latest_scan_score"] is None
+
     def test_email_detail(self, env):
         email, _ = seed(env)
         data = env["client"].get(f"/emails/{email.id}").json()
