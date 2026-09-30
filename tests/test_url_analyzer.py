@@ -37,6 +37,41 @@ class TestUrlAnalyzer:
             for flag in result.per_url_results[0].heuristic_flags
         )
 
+    def test_tracking_boilerplate_skipped_for_authenticated_sender(self):
+        """Long / redirect-encoded links on the sender's own domain are
+        click-tracking when the envelope is authenticated — not risk."""
+        long_link = "https://community.raklet.com/t/c?code=" + "a" * 400
+        analyzer = UrlAnalyzer(settings())
+
+        unauth = analyzer.analyze(
+            long_link, "", sender_domain="news@raklet.com"
+        )
+        assert any(
+            "long URL" in flag
+            for flag in unauth.per_url_results[0].heuristic_flags
+        )
+
+        auth = analyzer.analyze(
+            long_link, "",
+            sender_domain="news@raklet.com",
+            sender_authenticated=True,
+        )
+        assert auth.per_url_results[0].heuristic_flags == []
+        assert auth.per_url_results[0].final_score == 0.0
+
+    def test_authenticated_sender_other_domain_still_flagged(self):
+        """Authentication of the sender does not excuse a long link on a
+        different domain (ESP click-wrap stays visible via whitelist logic,
+        unknown redirectors keep the +20 embedded-redirect penalty)."""
+        analyzer = UrlAnalyzer(settings())
+        result = analyzer.analyze(
+            "https://evil.example/x?u=http%3A%2F%2Fpaypa1.com%2Flogin",
+            "",
+            sender_domain="news@raklet.com",
+            sender_authenticated=True,
+        )
+        assert result.per_url_results[0].final_score > 0.0
+
     @patch("app.engines.url_analyzer.httpx.Client")
     def test_vt_responses(self, mock_client):
         analyzer = UrlAnalyzer(settings(VIRUSTOTAL_API_KEYS="mock"))

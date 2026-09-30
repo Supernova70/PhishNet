@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from deals-mail.example.net (deals-mail.example.net) [198.51.100.34] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=deals.example.net dkim=none dmarc=none
+From: Account Services <notice@deals.example.net>
+To: alice@example.com
+Subject: Your PayPal reward is waiting
+Message-ID: <url-short-013@deals.example.net>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+You have been selected for a PayPal reward. Claim it now via our short link: https://bit.ly/3x-verify-paypal

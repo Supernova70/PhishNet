@@ -23,7 +23,7 @@ from app.services.email_service import EmailService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/emails", tags=["Emails"])
 
-SCAN_TIMEOUT_SECONDS = 120
+SCAN_TIMEOUT_SECONDS = 240
 
 
 @router.post("/fetch", response_model=FetchEmailsResponse)
@@ -125,24 +125,51 @@ async def get_latest_scan(email_id: int, db: Session = Depends(get_db)):
 
 # ── Bulk Scan ──────────────────────────────────────────────
 
+def _mark_scan_error(scan_id: int) -> None:
+    """Mark a scan as ERROR using a fresh short-lived session.
+
+    Used on timeout, when the original session is still owned by the
+    abandoned worker thread — touching it would race the thread's
+    connection (and closing it could hand a live connection back to
+    the pool for another scan to corrupt).
+    """
+    err_db = SessionLocal()
+    try:
+        scan = err_db.query(Scan).filter(Scan.id == scan_id).first()
+        if scan:
+            scan.status = ScanStatus.ERROR.value
+            scan.completed_at = datetime.now(UTC).replace(tzinfo=None)
+            err_db.commit()
+    except Exception:
+        err_db.rollback()
+        logger.exception("Failed to mark timed-out scan %s as error", scan_id)
+    finally:
+        err_db.close()
+
+
 def _run_bulk_scan_task(scan_ids: list[int]) -> None:
-    """Run multiple scans using task-owned DB sessions with per-scan timeout."""
+    """Run multiple scans using task-owned DB sessions with per-scan timeout.
+
+    Important: the executor must NOT be used as a context manager here.
+    On timeout, `with ThreadPoolExecutor(...)` calls shutdown(wait=True),
+    which blocks forever waiting for the hung worker thread — the timeout
+    handler never ran, the current scan stayed RUNNING, and every scan
+    after it stayed PENDING forever. shutdown(wait=False) lets the queue
+    keep moving; startup recovery cleans up the abandoned RUNNING row.
+    """
     from app.services.scan_service import ScanService
 
     for scan_id in scan_ids:
         db = SessionLocal()
+        executor = ThreadPoolExecutor(max_workers=1)
+        timed_out = False
         try:
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(ScanService(db).run_scan_by_id, scan_id)
-                future.result(timeout=SCAN_TIMEOUT_SECONDS)
+            future = executor.submit(ScanService(db).run_scan_by_id, scan_id)
+            future.result(timeout=SCAN_TIMEOUT_SECONDS)
         except FuturesTimeoutError:
+            timed_out = True
             logger.error("Scan %s timed out after %ds — marking as error", scan_id, SCAN_TIMEOUT_SECONDS)
-            db.rollback()
-            scan = db.query(Scan).filter(Scan.id == scan_id).first()
-            if scan:
-                scan.status = ScanStatus.ERROR.value
-                scan.completed_at = datetime.now(UTC).replace(tzinfo=None)
-                db.commit()
+            _mark_scan_error(scan_id)
         except Exception:
             logger.exception("Background bulk scan %s failed", scan_id)
             db.rollback()
@@ -152,7 +179,9 @@ def _run_bulk_scan_task(scan_ids: list[int]) -> None:
                 scan.completed_at = datetime.now(UTC).replace(tzinfo=None)
                 db.commit()
         finally:
-            db.close()
+            executor.shutdown(wait=False, cancel_futures=True)
+            if not timed_out:
+                db.close()   # on timeout the session belongs to the still-running thread
 
 
 class BulkScanRequest(BaseModel):

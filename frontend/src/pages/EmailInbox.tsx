@@ -114,32 +114,50 @@ function RunScanButton({ emailId, alreadyScanned, onComplete }: { emailId: numbe
   const { scan: polledScan, error: pollError, startPolling } = usePollScan();
 
   useEffect(() => {
-    if (alreadyScanned) setState('complete');
+    if (!alreadyScanned) return;
+    queueMicrotask(() => setState('complete'));
+    // Resolve the latest finished scan so "View Analysis" can navigate to it.
+    let cancelled = false;
+    fetch(`/api/emails/${emailId}/latest-scan`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const scan = data && !data.scan ? data : data?.scan;
+        if (!cancelled && scan && typeof scan.id === 'number' && scan.status === 'complete') {
+          setScanId(scan.id);
+          if (scan.verdict) setVerdict(scan.verdict);
+        }
+      })
+      .catch(() => { /* keep the disabled "Scan Complete" fallback */ });
+    return () => { cancelled = true; };
   }, [alreadyScanned, emailId]);
 
   useEffect(() => {
     if (state !== 'scanning' || !polledScan) return;
-    if (polledScan.status === 'complete') {
-      setVerdict(polledScan.verdict);
-      setState('complete');
-      onComplete();
-    } else if (polledScan.status === 'error') {
-      setScanError('The background scan failed. Check backend logs for details.');
-      setState('failed');
-    }
+    queueMicrotask(() => {
+      if (polledScan.status === 'complete') {
+        setVerdict(polledScan.verdict);
+        setState('complete');
+        onComplete();
+      } else if (polledScan.status === 'error') {
+        setScanError('The background scan failed. Check backend logs for details.');
+        setState('failed');
+      }
+    });
   }, [polledScan, state, onComplete]);
 
   useEffect(() => {
-    if (state === 'scanning' && pollError) {
+    if (state !== 'scanning' || !pollError) return;
+    queueMicrotask(() => {
       setScanError(pollError);
       setState('failed');
-    }
+    });
   }, [pollError, state]);
 
   const handleScan = async () => {
-    if (state !== 'idle' && state !== 'failed') return;
+    if (state === 'scanning') return;
     setState('scanning');
     setScanError('');
+    setVerdict(null);
 
     try {
       const response = await fetch(`/api/scans/${emailId}`, {
@@ -182,29 +200,51 @@ function RunScanButton({ emailId, alreadyScanned, onComplete }: { emailId: numbe
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <motion.button
-        layout
-        onClick={handleScan}
-        disabled={state === 'scanning' || state === 'complete'}
-        style={{
-          background: cfg.bg,
-          color: cfg.color,
-          border: `1px solid ${cfg.border}`,
-          borderRadius: 6,
-          padding: '8px 18px',
-          fontSize: '0.875rem',
-          fontWeight: 600,
-          cursor: state === 'scanning' || state === 'complete' ? 'not-allowed' : 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          transition: 'all 250ms ease',
-          width: 'fit-content',
-        }}
-      >
-        {cfg.icon}
-        {cfg.label}
-      </motion.button>
+      {state === 'complete' && scanId !== null ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            className="btn-primary"
+            onClick={() => navigate(`/scans/${scanId}`)}
+            style={{ fontSize: '0.875rem', padding: '8px 18px' }}
+          >
+            <ScanSearch size={14} />
+            View Analysis →
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={handleScan}
+            style={{ fontSize: '0.8rem', padding: '7px 14px' }}
+            title="Run the scan again"
+          >
+            <RefreshCw size={13} />
+            Re-scan
+          </button>
+        </div>
+      ) : (
+        <motion.button
+          layout
+          onClick={handleScan}
+          disabled={state === 'scanning' || state === 'complete'}
+          style={{
+            background: cfg.bg,
+            color: cfg.color,
+            border: `1px solid ${cfg.border}`,
+            borderRadius: 6,
+            padding: '8px 18px',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            cursor: state === 'scanning' || state === 'complete' ? 'not-allowed' : 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            transition: 'all 250ms ease',
+            width: 'fit-content',
+          }}
+        >
+          {cfg.icon}
+          {cfg.label}
+        </motion.button>
+      )}
 
       {/* Scanning indicator */}
       {state === 'scanning' && (
@@ -282,7 +322,7 @@ function EmailDetailPanel({ emailId, onScanComplete }: { emailId: number; onScan
   const [viewMode, setViewMode] = useState<'text' | 'html'>('text');
 
   useEffect(() => {
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
     getEmail(emailId).then(setDetail).finally(() => setLoading(false));
   }, [emailId]);
 

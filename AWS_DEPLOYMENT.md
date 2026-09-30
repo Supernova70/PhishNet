@@ -311,9 +311,13 @@ cd ~/PhishNet
 ```
 
 This will:
-1. Start Docker
-2. Start all containers
-3. Print your **new public IP** with access URLs
+1. Start Docker (and create a swapfile on small instances)
+2. Ensure a TLS certificate exists at `/etc/letsencrypt/live/phishing-guard.duckdns.org/` (generates a self-signed one if you haven't run certbot yet — see HTTPS section)
+3. **Rebuild images and start all containers** (`up -d --build`) — so freshly pulled code always deploys; the backend runs `alembic upgrade head` (schema migrations) on start
+4. Wait for backend health + frontend build, then print container status
+5. Update DuckDNS and print your **new public IP** with access URLs (skip with `SKIP_DUCKDNS=1 ./startup.sh`)
+
+> **Note:** Run `./startup.sh` after **every `git pull`** — without `--build` the containers would keep running old code.
 
 > **Note:** Your public IP changes each time you stop/start. The startup script shows the new one. No code changes are needed — the frontend uses relative URLs (`/api/...`) through nginx, so it works with any IP.
 

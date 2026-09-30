@@ -15,9 +15,31 @@ const PAGE_CONFIG: Record<string, { title: string; breadcrumbs: Array<{ label: s
   '/scans': { title: 'Scan Results', breadcrumbs: [{ label: 'Analyze' }, { label: 'Scan Results' }] },
   '/url-analysis': { title: 'URL Analysis', breadcrumbs: [{ label: 'Analyze' }, { label: 'URL Analysis' }] },
   '/attachments': { title: 'Attachments', breadcrumbs: [{ label: 'Analyze' }, { label: 'Attachments' }] },
+  '/graph': { title: 'Attribution Graph', breadcrumbs: [{ label: 'Analyze' }, { label: 'Attribution Graph' }] },
+  '/campaigns': { title: 'Campaigns', breadcrumbs: [{ label: 'Analyze' }, { label: 'Campaigns' }] },
+  '/alerts': { title: 'Alerts', breadcrumbs: [{ label: 'Monitor' }, { label: 'Alerts' }] },
   '/health': { title: 'API Health', breadcrumbs: [{ label: 'System' }, { label: 'API Health' }] },
   '/settings': { title: 'Settings', breadcrumbs: [{ label: 'System' }, { label: 'Settings' }] },
 };
+
+// Dynamic route titles (matchers run before the prefix lookup)
+const DYNAMIC_TITLES: Array<{ test: RegExp; title: string; crumbs: Array<{ label: string }> }> = [
+  {
+    test: /^\/scans\/\d+\/report$/,
+    title: 'Forensic Report',
+    crumbs: [{ label: 'Analyze' }, { label: 'Scan Results' }, { label: 'Forensic Report' }],
+  },
+  {
+    test: /^\/emails\/\d+\/trace$/,
+    title: 'Origin Trace',
+    crumbs: [{ label: 'Monitor' }, { label: 'Email Inbox' }, { label: 'Origin Trace' }],
+  },
+  {
+    test: /^\/campaigns\/\d+$/,
+    title: 'Campaign Detail',
+    crumbs: [{ label: 'Analyze' }, { label: 'Campaigns' }, { label: 'Detail' }],
+  },
+];
 
 export function Layout() {
   const location = useLocation();
@@ -26,26 +48,30 @@ export function Layout() {
   const [refreshKey, setRefreshKey] = useState(0);
   const { toasts, toast, removeToast } = useToast();
 
-  // Find current page config (handle dynamic routes like /scans/:id)
+  // Find current page config (handle dynamic routes like /scans/:id/report)
+  const dynamic = DYNAMIC_TITLES.find((d) => d.test.test(location.pathname));
   const pathKey = Object.keys(PAGE_CONFIG).find(
     (k) => location.pathname === k || (k !== '/' && location.pathname.startsWith(k + '/'))
   ) ?? '/';
-  const pageConf = PAGE_CONFIG[pathKey] ?? PAGE_CONFIG['/'];
+  const pageConf = dynamic
+    ? { title: dynamic.title, breadcrumbs: dynamic.crumbs }
+    : PAGE_CONFIG[pathKey] ?? PAGE_CONFIG['/'];
 
   const handleEmailsFetched = () => setRefreshKey((k) => k + 1);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)' }}>
+    <div className="app-layout" style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-page)' }}>
       <Sidebar
         apiStatus={backendOnline === false ? 'offline' : backendOnline ? 'online' : 'warning'}
         health={health}
       />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="app-column" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Backend Offline Banner */}
         <AnimatePresence>
           {backendOnline === false && (
             <motion.div
+              className="app-banner no-print"
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 36, opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -75,9 +101,10 @@ export function Layout() {
           toastError={toast.error}
         />
 
-        <main style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)' }}>
+        <main className="app-main" style={{ flex: 1, overflow: 'auto', background: 'var(--bg-page)' }}>
           <AnimatePresence mode="wait">
             <motion.div
+              className="app-page"
               key={location.pathname}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}

@@ -20,6 +20,8 @@ export function usePollScan() {
     }
   }, []);
 
+  const pollOnceRef = useRef<(scanId: number) => Promise<void>>(async () => {});
+
   const pollOnce = useCallback(async (scanId: number) => {
     try {
       const result = await getScan(scanId);
@@ -37,12 +39,16 @@ export function usePollScan() {
         return;
       }
 
-      timerRef.current = setTimeout(() => pollOnce(scanId), POLL_INTERVAL);
-    } catch (err) {
+      timerRef.current = setTimeout(() => pollOnceRef.current(scanId), POLL_INTERVAL);
+    } catch {
       setError('Failed to fetch scan status');
       stopPolling();
     }
   }, [stopPolling]);
+
+  useEffect(() => {
+    pollOnceRef.current = pollOnce;
+  }, [pollOnce]);
 
   const startPolling = useCallback(
     (scanId: number) => {

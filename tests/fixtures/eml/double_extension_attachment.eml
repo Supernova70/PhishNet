@@ -1,0 +1,22 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from smtp.invoice-desk.example (smtp.invoice-desk.example) [203.0.113.130] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=invoice-desk.example dkim=none dmarc=none
+From: Invoices <invoices@invoice-desk.example>
+To: alice@example.com
+Subject: Scanned invoice attached
+Message-ID: <double-ext-019@invoice-desk.example>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="----=_Part_double-ext-019@invoice-desk.example"
+
+------=_Part_double-ext-019@invoice-desk.example
+Content-Type: text/plain; charset="utf-8"
+
+Please review the attached invoice and reply with approval.
+------=_Part_double-ext-019@invoice-desk.example
+Content-Type: application/octet-stream; name="invoice.pdf.exe"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="invoice.pdf.exe"
+
+TVqQAGZha2UtcGF5bG9hZC1mb3ItZGV0ZWN0b3ItdGVzdHMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+------=_Part_double-ext-019@invoice-desk.example--

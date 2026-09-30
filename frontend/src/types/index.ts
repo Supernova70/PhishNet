@@ -72,6 +72,16 @@ export interface ScanBreakdown {
     score: number;
     label: string;
     is_phishing: boolean;
+    bec?: {
+      score: number;
+      categories: Array<{ category: string; confidence: number; detail?: string }>;
+    } | null;
+    lookalike?: {
+      brand: string;
+      similarity: number;
+      registered_domain?: string;
+    } | null;
+    flags?: string[];
   };
   url: {
     score: number;
@@ -134,6 +144,19 @@ export interface ScanBreakdown {
       vt_error?: string | null;
     }>;
   };
+  header?: {
+    score: number;
+    present: boolean;
+    flags: string[];
+    // Fired anomaly rules with their score weights (plan §6.2, FE-C1)
+    rules: Array<{ rule: string; weight: number; detail: string }> | unknown[];
+    origin_ip: string | null;
+    origin_host: string | null;
+    hop_count: number;
+    auth: Record<string, unknown> | null;
+    errors: string[];
+  };
+  attribution?: Record<string, unknown> | null;
 }
 
 // ─── Health Types ────────────────────────────────────────────────────────────

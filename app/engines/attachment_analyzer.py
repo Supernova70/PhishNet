@@ -33,7 +33,7 @@ from app.engines.analyzers.base import FileAnalysisResult
 from app.engines.analyzers.pe_analyzer import analyze_pe
 from app.engines.analyzers.pdf_analyzer import analyze_pdf
 from app.engines.analyzers.office_analyzer import analyze_office
-from app.engines.analyzers.generic_analyzer import analyze_generic
+from app.engines.analyzers.generic_analyzer import analyze_generic, DOUBLE_EXT_PATTERN
 from app.engines.analyzers.yara_scanner import YaraScanner
 
 if TYPE_CHECKING:
@@ -222,6 +222,21 @@ class AttachmentAnalyzer:
             )
             file_result.risk_score = min(100.0, file_result.risk_score + 20.0)
 
+        # Filename masquerading (invoice.pdf.exe) must score no matter
+        # which analyzer handled the content — a fake ".exe" carrying PDF
+        # bytes routes to the PDF analyzer, which knows nothing about
+        # double extensions. generic_analyzer sets the same indicator
+        # when it is the one that ran; don't count the signal twice.
+        if (
+            not file_result.indicators.get("double_extension")
+            and DOUBLE_EXT_PATTERN.search(filename)
+        ):
+            file_result.indicators["double_extension"] = True
+            file_result.findings.append(
+                f"Double extension detected: '{filename}' — classic trick to disguise executables"
+            )
+            file_result.risk_score = min(100.0, file_result.risk_score + 30.0)
+
         # ── YARA scan (runs on ALL files, regardless of type) ─────
         yara_result = self._yara.scan(data, filename)
         if yara_result.matched:
@@ -396,8 +411,12 @@ class AttachmentAnalyzer:
 
         # ── PE files ──────────────────────────────────────────────
         if mime in PE_MIMES or ext in PE_EXTS:
-            # Extra guard: check for actual MZ header before routing to PE analyzer
-            if data[:2] == b"MZ" or ext in PE_EXTS:
+            # Require an actual MZ header before routing to the PE
+            # analyzer. A ".pdf.exe" with no executable header is the
+            # masquerading trick itself — routing it to the PE analyzer
+            # just errors out with score 0; falling through to generic
+            # lets the double-extension + entropy rules score it.
+            if data[:2] == b"MZ":
                 logger.debug(f"Routing '{filename}' → PE analyzer")
                 return analyze_pe(data, filename)
 

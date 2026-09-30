@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from host.dynamic-isp.net (host.dynamic-isp.net) [203.0.113.66] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=fail smtp.mailfrom=paypal.com dkim=none dmarc=fail header.from=paypal.com
+From: PayPal <service@paypal.com>
+To: alice@example.com
+Subject: Your account is limited
+Message-ID: <plain-spoof-003@evil.example>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Your account has been limited. Sign in at https://account-verify.paypa1-secure.net to restore access.

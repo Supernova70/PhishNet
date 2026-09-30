@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Paperclip,
@@ -6,17 +6,15 @@ import {
   Code,
   File,
   Search,
-  ExternalLink,
   Shield,
   AlertTriangle,
 } from 'lucide-react';
 import { getAttachments } from '../api/client';
 import { ClassificationBadge, ScoreBadge } from '../components/ui/Badge';
-import { formatDistanceToNow } from 'date-fns';
 import type { AttachmentSummary } from '../api/client';
 
 // ─── File Type Icon ───────────────────────────────────────────────────────────
-function FileTypeIcon({ filename, contentType }: { filename: string; contentType: string | null }) {
+function FileTypeIcon({ filename }: { filename: string }) {
   const ext = filename.split('.').pop()?.toLowerCase() ?? '';
   if (['pdf'].includes(ext)) return <FileText size={20} style={{ color: '#EF4444' }} />;
   if (['exe', 'dll', 'bat', 'ps1', 'cmd'].includes(ext)) return <Code size={20} style={{ color: '#F59E0B' }} />;
@@ -67,7 +65,7 @@ function AttachmentCard({
       }}
     >
       <div style={{ flexShrink: 0, marginTop: 2 }}>
-        <FileTypeIcon filename={att.filename} contentType={att.content_type} />
+        <FileTypeIcon filename={att.filename} />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -116,11 +114,15 @@ function AttachmentCard({
 }
 
 // ─── Attachments Page ─────────────────────────────────────────────────────────
+type SortKey = 'date' | 'filename' | 'score' | 'size';
+
 export function AttachmentsPage() {
   const [attachments, setAttachments] = useState<AttachmentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [, setError] = useState<string | null>(null);
 
   useEffect(() => {
     getAttachments(0, 200)
@@ -129,14 +131,26 @@ export function AttachmentsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = search
-    ? attachments.filter(
-        (a) =>
-          a.filename.toLowerCase().includes(search.toLowerCase()) ||
-          a.email_sender.toLowerCase().includes(search.toLowerCase()) ||
-          a.email_subject.toLowerCase().includes(search.toLowerCase())
-      )
-    : attachments;
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    const list = search
+      ? attachments.filter(
+          (a) =>
+            a.filename.toLowerCase().includes(q) ||
+            a.email_sender.toLowerCase().includes(q) ||
+            a.email_subject.toLowerCase().includes(q)
+        )
+      : attachments;
+    const dir = sortDir === 'desc' ? -1 : 1;
+    return [...list].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'filename') cmp = a.filename.localeCompare(b.filename);
+      else if (sortKey === 'score') cmp = (a.latest_scan_score ?? -1) - (b.latest_scan_score ?? -1);
+      else if (sortKey === 'size') cmp = a.size_bytes - b.size_bytes;
+      else cmp = a.id - b.id; // insertion order ≈ ingest date
+      return cmp === 0 ? b.id - a.id : cmp * dir;
+    });
+  }, [attachments, search, sortKey, sortDir]);
 
   const stats = {
     total: attachments.length,
@@ -186,16 +200,49 @@ export function AttachmentsPage() {
         ))}
       </div>
 
-      {/* Search */}
-      <div style={{ position: 'relative' }}>
-        <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-        <input
-          className="dark-input"
-          style={{ width: '100%', paddingLeft: 36 }}
-          placeholder="Search by filename, sender, or subject…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* Search + Sort */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+          <input
+            className="dark-input"
+            style={{ width: '100%', paddingLeft: 36 }}
+            placeholder="Search by filename, sender, or subject…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sort:</span>
+          <select
+            className="dark-input"
+            style={{ fontSize: '0.75rem', padding: '5px 8px' }}
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+          >
+            <option value="date">Date</option>
+            <option value="filename">Filename</option>
+            <option value="score">Score</option>
+            <option value="size">Size</option>
+          </select>
+          <button
+            onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+            title={sortDir === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
+            style={{
+              padding: '5px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--border-default)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {sortDir === 'desc' ? '↓ desc' : '↑ asc'}
+          </button>
+        </div>
       </div>
 
       {/* Attachment Grid */}

@@ -37,6 +37,16 @@ class Email(Base):
     scans: Mapped[List["Scan"]] = relationship(  # type: ignore[name-defined]
         back_populates="email"
     )
+    source: Mapped[Optional["EmailSource"]] = relationship(  # type: ignore[name-defined]
+        back_populates="email", uselist=False, cascade="all, delete-orphan"
+    )
+    hops: Mapped[List["ReceivedHop"]] = relationship(  # type: ignore[name-defined]
+        back_populates="email", cascade="all, delete-orphan",
+        order_by="ReceivedHop.hop_index",
+    )
+    auth_result: Mapped[Optional["AuthResult"]] = relationship(  # type: ignore[name-defined]
+        back_populates="email", uselist=False, cascade="all, delete-orphan"
+    )
 
     def to_dict(self) -> dict:
         return {

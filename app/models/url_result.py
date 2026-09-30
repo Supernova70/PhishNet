@@ -59,5 +59,15 @@ class UrlResult(Base):
         String(1024), nullable=True
     )
 
+    # ── Dynamic analysis detail (migration 0003) ─────────────────────────────────
+    dynamic_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    dynamic_flags: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    dynamic_error: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    final_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    external_form_action: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    download_attempted: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    popup_attempted: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    dynamic_elapsed_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     # ── Relationships ──────────────────────────────────────────────────────────
     scan: Mapped["Scan"] = relationship(back_populates="url_results")  # type: ignore[name-defined]

@@ -12,7 +12,12 @@ const SEGMENTS = [
   { key: 'safe', label: 'Safe', color: '#10B981' },
 ];
 
-const CustomTooltip = ({ active, payload }: any) => {
+interface DonutTooltipProps {
+  active?: boolean;
+  payload?: Array<{ name?: string; value?: number | string }>;
+}
+
+const CustomTooltip = ({ active, payload }: DonutTooltipProps) => {
   if (!active || !payload?.length) return null;
   const { name, value } = payload[0];
   return (

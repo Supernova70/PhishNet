@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from mail.compromised-partner.com (mail.compromised-partner.com) [198.51.100.88] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=compromised-partner.com dkim=pass header.d=compromised-partner.com dmarc=pass header.from=compromised-partner.com
+From: Accounts Payable <ap@compromised-partner.com>
+To: alice@example.com
+Subject: RE: Purchase order PO#7731 — payment details
+Message-ID: <dkim-pass-bec-010@compromised-partner.com>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Following up on PO#7731. Please note our account details have been updated — payment to the new account only. The outstanding amount of $8,200.00 is due today; kindly confirm once the wire transfer is initiated.

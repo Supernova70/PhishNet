@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from mx.paypa1.com (mx.paypa1.com) [203.0.113.70] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=paypa1.com dkim=none dmarc=none
+From: PayPal <no-reply@paypa1.com>
+To: alice@example.com
+Subject: Confirm your identity
+Message-ID: <lookalike-011@paypa1.com>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Confirm your identity to keep your wallet active. Verify your account details here: https://paypa1.com/confirm

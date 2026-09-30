@@ -1,0 +1,13 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from mail.amex-billing.com (mail.amex-billing.com) [198.51.100.63] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=amex-billing.com dkim=none dmarc=none
+From: Statements <billing@amex-billing.com>
+To: alice@example.com
+Subject: Your statement is ready to view
+Message-ID: <replyto-hijack-009@amex-billing.com>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+Reply-To: recover@account-verify.ru
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Your monthly statement is ready. Reply to this email if you need a copy re-sent to a different address.

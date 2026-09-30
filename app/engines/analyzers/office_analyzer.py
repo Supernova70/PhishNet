@@ -181,18 +181,34 @@ def _analyze_ooxml(data: bytes, filename: str) -> FileAnalysisResult:
                         pass
 
         # ── External relationship links ───────────────────────────
+        # Hyperlink/image rels are normal document furniture (every
+        # link-heavy newsletter would fire). Score only the actual
+        # remote-content TTPs: attachedTemplate (remote template
+        # injection) and externally linked OLE objects.
+        external_risk_added = False
         for n in zf.namelist():
-            if n.endswith(".rels"):
-                try:
-                    content = zf.read(n).decode("utf-8", errors="replace")
-                    if "http://" in content or "https://" in content or "file://" in content:
-                        indicators["external_rels"].append(n)
-                        findings.append(
-                            f"External relationship link in {n} — possible template injection"
-                        )
+            if not n.endswith(".rels"):
+                continue
+            try:
+                content = zf.read(n).decode("utf-8", errors="replace")
+                has_remote_target = (
+                    "http://" in content
+                    or "https://" in content
+                    or "file://" in content
+                )
+                is_template = "attachedTemplate" in content
+                is_linked_ole = "oleObject" in content and "TargetMode=\"External\"" in content
+                if has_remote_target and (is_template or is_linked_ole):
+                    indicators["external_rels"].append(n)
+                    findings.append(
+                        f"External {'attachedTemplate' if is_template else 'OLE'} "
+                        f"relationship in {n} — remote content injection"
+                    )
+                    if not external_risk_added:
                         risk_score += 20.0
-                except Exception:
-                    pass
+                        external_risk_added = True
+            except Exception:
+                pass
 
         # ── Embedded OLE objects ──────────────────────────────────
         if any("embeddings" in n for n in names_lower):

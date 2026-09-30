@@ -10,6 +10,7 @@ import type { Scan, Email } from '../types';
 
 type ClassFilter = 'all' | 'dangerous' | 'suspicious' | 'safe';
 type StatusFilter = 'all' | 'complete' | 'running' | 'error';
+type SortKey = 'date' | 'score' | 'subject';
 
 // ─── Skeleton ScanCard ────────────────────────────────────────────────────────
 function ScanCardSkeleton() {
@@ -141,6 +142,8 @@ export function ScanResults() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [scoreMin, setScoreMin] = useState(0);
   const [scoreMax, setScoreMax] = useState(100);
+  const [sortKey, setSortKey] = useState<SortKey>('score');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -169,8 +172,19 @@ export function ScanResults() {
       if (!s.verdict) return statusFilter !== 'all';
       return s.verdict.final_score >= scoreMin && s.verdict.final_score <= scoreMax;
     });
-    return list.sort((a, b) => (b.verdict?.final_score ?? 0) - (a.verdict?.final_score ?? 0));
-  }, [scans, classFilter, statusFilter, scoreMin, scoreMax]);
+    const dir = sortDir === 'desc' ? -1 : 1;
+    return [...list].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'date') {
+        cmp = (a.completed_at || a.started_at || '').localeCompare(b.completed_at || b.started_at || '');
+      } else if (sortKey === 'subject') {
+        cmp = (emailMap.get(a.email_id)?.subject ?? '').localeCompare(emailMap.get(b.email_id)?.subject ?? '');
+      } else {
+        cmp = (a.verdict?.final_score ?? -1) - (b.verdict?.final_score ?? -1);
+      }
+      return cmp === 0 ? b.id - a.id : cmp * dir;
+    });
+  }, [scans, classFilter, statusFilter, scoreMin, scoreMax, sortKey, sortDir, emailMap]);
 
   if (error) {
     return (
@@ -238,6 +252,38 @@ export function ScanResults() {
           <span style={{ color: 'var(--text-muted)' }}>–</span>
           <input type="range" min={0} max={100} value={scoreMax} onChange={(e) => setScoreMax(+e.target.value)} style={{ width: 80, accentColor: 'var(--primary)' }} />
           <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', minWidth: 24 }}>{scoreMax}</span>
+        </div>
+
+        {/* Sort */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sort:</span>
+          <select
+            className="dark-input"
+            style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+          >
+            <option value="date">Date</option>
+            <option value="score">Score</option>
+            <option value="subject">Subject</option>
+          </select>
+          <button
+            onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+            title={sortDir === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--border-default)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {sortDir === 'desc' ? '↓ desc' : '↑ asc'}
+          </button>
         </div>
 
         <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>

@@ -82,9 +82,12 @@ rule PhishingUrgencyLanguage : phishing social_engineering
 rule PhishingBrandImpersonation : phishing impersonation
 {
     meta:
-        description = "Detects common brand impersonation strings in non-brand domains"
+        description = "Brand-name + credential language in a document (weak signal alone)"
         author      = "Phishing Guard"
-        severity    = "medium"
+        // low: brand words appear in perfectly legitimate documents
+        // (guidelines, tutorials, invoices). Keeps the signal visible
+        // without dominating a benign file's score.
+        severity    = "low"
 
     strings:
         // Brands commonly impersonated in phishing

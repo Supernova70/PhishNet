@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from webhook.stealth.example (webhook.stealth.example) [198.51.100.140] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=stealth.example dkim=none dmarc=none
+From: Document Share <files@stealth.example>
+To: alice@example.com
+Subject: Shared document: Q1 forecast
+Message-ID: <html-hidden-018@stealth.example>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/html; charset="utf-8"
+
+<html><body style="color:#ffffff;font-size:1px"><p>Q1 forecast attached.</p><div><a href="http://stealth.example/login">Open the document</a></div><span style="display:none"><a href="http://stealth.example/session">click</a></span></body></html>

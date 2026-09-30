@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from vps-44.random-host.net (vps-44.random-host.net) [203.0.113.44] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=random-host.net dkim=none dmarc=none
+From: PayPal Security <spoof@random-host.net>
+To: alice@example.com
+Subject: Unusual sign-in attempt detected
+Message-ID: <display-spoof-004@random-host.net>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+We detected an unusual sign-in attempt on your PayPal account. Verify your account within 24 hours to avoid suspension.

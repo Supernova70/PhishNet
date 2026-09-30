@@ -100,6 +100,7 @@ interface ToastContainerProps {
 export function ToastContainer({ toasts, removeToast }: ToastContainerProps) {
   return (
     <div
+      className="no-print"
       style={{
         position: 'fixed',
         top: 20,

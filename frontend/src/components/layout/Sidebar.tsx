@@ -10,6 +10,9 @@ import {
   Paperclip,
   Settings,
   Activity,
+  Share2,
+  Megaphone,
+  Bell,
 } from 'lucide-react';
 import { StatusDot } from '../ui/Badge';
 import type { HealthResponse } from '../../hooks/useSystemHealth';
@@ -124,10 +127,13 @@ export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online
     { to: '/', icon: <LayoutDashboard size={16} />, label: 'Dashboard' },
     { to: '/emails', icon: <Inbox size={16} />, label: 'Email Inbox', badge: unreadCount || null, badgeType: 'count' },
     { to: '/active-scans', icon: <ScanLine size={16} />, label: 'Active Scans', badge: runningScans || null, badgeType: 'count' },
+    { to: '/alerts', icon: <Bell size={16} />, label: 'Alerts' },
   ];
 
   const analyzeItems: NavItem[] = [
     { to: '/scans', icon: <ShieldCheck size={16} />, label: 'Scan Results' },
+    { to: '/graph', icon: <Share2 size={16} />, label: 'Attribution Graph' },
+    { to: '/campaigns', icon: <Megaphone size={16} />, label: 'Campaigns' },
     { to: '/url-analysis', icon: <Link2 size={16} />, label: 'URL Analysis' },
     { to: '/attachments', icon: <Paperclip size={16} />, label: 'Attachments' },
   ];
@@ -157,7 +163,7 @@ export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online
   ];
 
   return (
-    <aside style={{
+    <aside className="app-sidebar no-print" style={{
       width: 240,
       minWidth: 240,
       height: '100vh',

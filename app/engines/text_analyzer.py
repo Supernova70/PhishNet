@@ -8,7 +8,7 @@ and predicts whether email text is phishing or legitimate.
 import logging
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 from functools import lru_cache
 from pathlib import Path
 
@@ -123,3 +123,28 @@ def get_text_analyzer() -> TextAnalyzer:
     """Cached singleton — the model is loaded once and reused."""
     settings = get_settings()
     return TextAnalyzer(settings.MODEL_PATH)
+
+
+def scan_body_yara(text: str) -> List[str]:
+    """Run `phishing.yar` content rules over body text (plan §5, B7).
+
+    Evidence only: returned flags feed `breakdown["ai"]["flags"]` and
+    contribute no score — the fusion weights already cover body risk
+    via BEC/lookalike/ML. Fail-graceful like the attachment scanner:
+    missing yara-python, a rules-load error or a match error all return
+    `[]` so a scan never fails because of content rules.
+    """
+    if not text or not text.strip():
+        return []
+    try:
+        from app.engines.analyzers.yara_scanner import YaraScanner
+
+        result = YaraScanner().scan(
+            text.encode("utf-8", errors="replace"), "body-text"
+        )
+        if not result.matched:
+            return []
+        return [f"yara:{m.rule_name}" for m in result.matches]
+    except Exception:  # noqa: BLE001 — optional evidence path
+        logger.debug("Body-text YARA scan skipped", exc_info=True)
+        return []

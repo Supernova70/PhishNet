@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from tor-exit.example (tor-exit.example) [185.220.101.5] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=fail smtp.mailfrom=anon.example dkim=none dmarc=fail header.from=anon.example
+From: Newsletter <blast@anon.example>
+To: alice@example.com
+Subject: Breaking news digest
+Message-ID: <tor-origin-017@anon.example>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Click here for today's headlines: http://anon.example/now

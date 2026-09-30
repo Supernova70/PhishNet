@@ -80,14 +80,26 @@ class UrlAnalyzer:
         body_html: Optional[str],
         *,
         scan_id: int | None = None,
+        sender_domain: str | None = None,
+        sender_authenticated: bool = False,
     ) -> UrlEngineResult:
         urls = self._extract_and_deduplicate(body_text or "", body_html or "")
+
+        sender_reg = None
+        if sender_domain:
+            sender_reg = registrable_domain(f"https://{sender_domain}") or (
+                sender_domain.lower().split(":")[0]
+            )
 
         results = []
         vt_checked = 0
 
         for original, normalized in urls:
-            result = self._score_heuristic(original, normalized)
+            result = self._score_heuristic(
+                original, normalized,
+                sender_reg=sender_reg,
+                sender_authenticated=sender_authenticated,
+            )
 
             # VirusTotal lookup
             if self._vt_keys:
@@ -261,7 +273,9 @@ class UrlAnalyzer:
     # ── STAGE 2: Static Heuristic Scoring ─────────────────────────────────――
 
     def _score_heuristic(
-        self, original_url: str, normalized_url: str
+        self, original_url: str, normalized_url: str,
+        sender_reg: Optional[str] = None,
+        sender_authenticated: bool = False,
     ) -> UrlAnalysisResult:
         res = UrlAnalysisResult(
             original_url=original_url, normalized_url=normalized_url
@@ -288,17 +302,27 @@ class UrlAnalyzer:
             "cloudflare.com", "azure.com", "azurewebsites.net",
             "github.io", "github.com", "gitlab.io",
             "s3.amazonaws.com", "console.aws.amazon.com",
+            # Google ccSLDs + shortlinks (google.co.in is Google, not a spoof)
+            "google.co.in", "google.co.uk", "google.com.au",
+            "google.co.jp", "google.de", "google.fr", "c.gle",
+            "goo.gl", "g.co",
+            # Legitimate email click-trackers (marketing redirectors)
+            "awstrack.me", "inflection.io", "pinterest.com",
+            "mailchi.mp", "substack.com",
         }
         is_known_service = any(
             registered_domain == d or registered_domain.endswith(f".{d}")
             for d in brand_whitelist_domains
         )
 
-        # Check 1: HTTP scheme (+15, reduced for institutional)
+        # Check 1: HTTP scheme (+15, reduced for institutional / known services)
         if parsed.scheme == "http":
             if is_institutional:
                 score += 3  # Much lower penalty for .edu/.gov HTTP
                 res.heuristic_flags.append("HTTP connection (institutional domain — low risk)")
+            elif is_known_service:
+                score += 5  # Big brand over http: legacy link, will redirect
+                res.heuristic_flags.append("HTTP connection (known service — low risk)")
             else:
                 score += 15
                 res.heuristic_flags.append("Unencrypted HTTP connection")
@@ -342,26 +366,42 @@ class UrlAnalyzer:
                 (r"\bch[a4]se\b", "chase.com"),
                 (r"\bwe[l1]{2}sfarg[o0]\b", "wellsfargo.com"),
             ]
+            reg_label0 = registered_domain.split(".")[0]
             for pattern, real_domain in brands:
-                if re.search(pattern, hostname) and registered_domain != real_domain:
-                    match_str = re.search(pattern, hostname).group(0)
+                match = re.search(pattern, hostname)
+                if match and registered_domain != real_domain:
+                    brand = real_domain.split(".")[0]
+                    if reg_label0 == brand:
+                        # Brand-family domain: google.co.in, amazon.co.uk …
+                        # (first registrable label IS the brand — not a spoof)
+                        continue
                     score += 40
                     res.heuristic_flags.append(
-                        f"Brand impersonation: '{match_str}' in host but domain is '{registered_domain}'"
+                        f"Brand impersonation: '{match.group(0)}' in host but domain is '{registered_domain}'"
                     )
                     break
 
-        # Check 6: Excessive subdomains (+15, raised threshold for institutional)
+        # Check 6: Excessive subdomains (+15) — labels beyond the
+        # registrable domain (so www.google.co.in / console.aws.amazon.com,
+        # whose extra labels belong to the domain structure itself, don't count)
+        sub_count = len(parts) - len(registered_domain.split("."))
         subdomain_threshold = 5 if is_institutional else 4
-        if len(parts) >= subdomain_threshold:
+        if sub_count >= subdomain_threshold:
             score += 15
             res.heuristic_flags.append(
-                f"Excessive subdomains ({len(parts)} levels): {hostname}"
+                f"Excessive subdomains ({sub_count} levels): {hostname}"
             )
+
+        # Envelope-authenticated mail linking to its own domain: length
+        # and embedded-redirect heuristics are tracking/boilerplate
+        # patterns (JWT click codes, ESP click-wrap), not URL risk.
+        tracking_boilerplate = (
+            sender_authenticated and sender_reg and registered_domain == sender_reg
+        )
 
         # Check 7: Long URL (+10, raised threshold for known services)
         long_url_threshold = 400 if is_known_service else 200
-        if len(original_url) > long_url_threshold:
+        if len(original_url) > long_url_threshold and not tracking_boilerplate:
             score += 10
             res.heuristic_flags.append(
                 f"Unusually long URL ({len(original_url)} chars)"
@@ -374,7 +414,9 @@ class UrlAnalyzer:
             entropy = -sum(
                 (c / len(path)) * math.log2(c / len(path)) for c in counts.values()
             )
-            entropy_threshold = 5.5 if is_known_service else 5.0
+            entropy_threshold = 6.0 if is_known_service else 5.0
+            if is_institutional and not is_known_service:
+                entropy_threshold = 5.5
             if entropy > entropy_threshold:
                 score += 15
                 res.heuristic_flags.append(
@@ -388,10 +430,20 @@ class UrlAnalyzer:
                 "@ symbol in URL — credential obfuscation pattern"
             )
 
-        # Check 10: Redirect encoded (+20)
-        if original_url.lower().count("http") > 1:
-            score += 20
+        # Check 10: Redirect encoded (+20; +10 on known services — Google
+        # News / Pinterest click-wrap links embed their target routinely)
+        if original_url.lower().count("http") > 1 and not tracking_boilerplate:
+            score += 10 if is_known_service else 20
             res.heuristic_flags.append("URL contains embedded redirect")
+
+        # Check 11: Same domain as the sender — mailing-list / tracking
+        # boilerplate from the sender's own domain is not URL risk.
+        if sender_reg and registered_domain == sender_reg:
+            if score > 10.0:
+                score = 10.0
+                res.heuristic_flags.append(
+                    f"Same domain as sender ({sender_reg}) — tracking link, capped"
+                )
 
         res.heuristic_score = min(score, 100.0)
         return res

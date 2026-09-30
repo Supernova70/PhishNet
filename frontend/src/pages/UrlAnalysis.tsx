@@ -25,8 +25,13 @@ interface UrlEntry {
   playwright_screenshot_path?: string | null;
 }
 
+/** Read an optional field from a loosely-typed verdict breakdown row. */
+function optional<T>(obj: unknown, key: string): T | undefined {
+  return (obj as Record<string, T | undefined>)[key];
+}
+
 type RiskFilter = 'all' | 'high' | 'medium' | 'low';
-type SortKey = 'score' | 'url' | 'scan_id';
+type SortKey = 'score' | 'url' | 'scan_id' | 'date';
 
 // ─── KPI Card ──────────────────────────────────────────────────────────────────
 function KpiCard({ title, value, accent }: { title: string; value: number; accent: string }) {
@@ -277,6 +282,7 @@ export function UrlAnalysis() {
   const [search, setSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
   const [sortBy, setSortBy] = useState<SortKey>('score');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -312,9 +318,9 @@ export function UrlAnalysis() {
               score: u.score ?? u.final_score ?? 0,
               heuristic_score: u.heuristic_score,
               vt_malicious: u.vt_malicious ?? vtDet?.malicious ?? 0,
-              vt_suspicious: (u as any).vt_suspicious ?? vtDet?.suspicious ?? 0,
-              vt_total: (u as any).vt_total ?? vtDet?.total ?? 0,
-              vt_error: (u as any).vt_error ?? null,
+              vt_suspicious: optional<number>(u, 'vt_suspicious') ?? vtDet?.suspicious ?? 0,
+              vt_total: optional<number>(u, 'vt_total') ?? vtDet?.total ?? 0,
+              vt_error: optional<string | null>(u, 'vt_error') ?? null,
               top_flags: u.top_flags ?? u.flags ?? [],
               scan_id: s.id,
               email_id: s.email_id,
@@ -359,11 +365,17 @@ export function UrlAnalysis() {
     else if (riskFilter === 'medium') list = list.filter((u) => u.score >= 30 && u.score < 70);
     else if (riskFilter === 'low') list = list.filter((u) => u.score < 30);
 
-    if (sortBy === 'score') return [...list].sort((a, b) => b.score - a.score);
-    if (sortBy === 'url') return [...list].sort((a, b) => a.url.localeCompare(b.url));
-    if (sortBy === 'scan_id') return [...list].sort((a, b) => b.scan_id - a.scan_id);
-    return list;
-  }, [allUrls, search, riskFilter, sortBy]);
+    const dir = sortDir === 'desc' ? -1 : 1;
+    const sorted = [...list].sort((a, b) => {
+      if (sortBy === 'url') return a.url.localeCompare(b.url) * dir;
+      if (sortBy === 'scan_id') return (a.scan_id - b.scan_id) * dir;
+      if (sortBy === 'date') {
+        return (a.scanned_at || '').localeCompare(b.scanned_at || '') * dir;
+      }
+      return (a.score - b.score) * dir;
+    });
+    return sorted;
+  }, [allUrls, search, riskFilter, sortBy, sortDir]);
 
   const riskPills: { label: string; value: RiskFilter; color: string }[] = [
     { label: 'All', value: 'all', color: 'var(--primary)' },
@@ -448,10 +460,28 @@ export function UrlAnalysis() {
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortKey)}
           >
-            <option value="score">Score (desc)</option>
+            <option value="score">Score</option>
+            <option value="date">Date</option>
             <option value="url">URL</option>
             <option value="scan_id">Scan ID</option>
           </select>
+          <button
+            onClick={() => setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))}
+            title={sortDir === 'desc' ? 'Descending — click for ascending' : 'Ascending — click for descending'}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--border-default)',
+              background: 'transparent',
+              color: 'var(--text-secondary)',
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {sortDir === 'desc' ? '↓ desc' : '↑ asc'}
+          </button>
         </div>
       </div>
 

@@ -9,18 +9,12 @@ import { ActiveScans } from './pages/ActiveScans';
 import { UrlAnalysis } from './pages/UrlAnalysis';
 import { AttachmentsPage } from './pages/AttachmentsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { TracePage } from './pages/TracePage';
+import { ReportPage } from './pages/ReportPage';
+import { GraphPage } from './pages/GraphPage';
+import { CampaignsPage } from './pages/CampaignsPage';
+import { AlertsPage } from './pages/AlertsPage';
 import { SystemHealthProvider } from './hooks/useSystemHealth';
-
-// ─── Placeholder pages for nav items without full pages ──────────────────────
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div style={{ padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
-      <p style={{ fontSize: '2rem', color: 'var(--text-muted)', marginBottom: 12 }}>🚧</p>
-      <p style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-secondary)' }}>{title}</p>
-      <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: 6 }}>Coming soon in a future release</p>
-    </div>
-  );
-}
 
 export default function App() {
   return (
@@ -33,6 +27,12 @@ export default function App() {
           <Route path="active-scans" element={<ActiveScans />} />
           <Route path="scans" element={<ScanResults />} />
           <Route path="scans/:id" element={<ScanDetail />} />
+          <Route path="scans/:id/report" element={<ReportPage />} />
+          <Route path="emails/:id/trace" element={<TracePage />} />
+          <Route path="graph" element={<GraphPage />} />
+          <Route path="campaigns" element={<CampaignsPage />} />
+          <Route path="campaigns/:id" element={<CampaignsPage />} />
+          <Route path="alerts" element={<AlertsPage />} />
           <Route path="url-analysis" element={<UrlAnalysis />} />
           <Route path="attachments" element={<AttachmentsPage />} />
           <Route path="health" element={<HealthPage />} />

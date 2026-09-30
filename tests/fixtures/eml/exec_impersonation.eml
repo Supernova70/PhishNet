@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from smtp.ceo-urgent-mail.com (smtp.ceo-urgent-mail.com) [203.0.113.91] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=ceo-urgent-mail.com dkim=none dmarc=none
+From: Marcus Reed, CEO <m.reed@ceo-urgent-mail.com>
+To: alice@example.com
+Subject: URGENT — need this done immediately
+Message-ID: <exec-impersonation-008@ceo-urgent-mail.com>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Are you at your desk? I need you to process an urgent wire transfer immediately — this is top priority and strictly confidential, between us only. Do not reply to this thread, reach me on my mobile.

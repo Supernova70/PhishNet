@@ -1,10 +1,12 @@
 """
-Phishing Guard V2 — Centralized Configuration
+AI-Powered Email Threat Detection, GeoLocation & Forensic Intelligence Platform
+— Centralized Configuration (SIH 26106)
 
 All settings are loaded from environment variables (via .env file).
 Uses Pydantic Settings for validation and type safety.
 """
 
+import os
 from pydantic_settings import BaseSettings
 from pydantic import Field
 from typing import List
@@ -15,8 +17,9 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # ── App ──────────────────────────────────────────────
-    APP_NAME: str = "Phishing Guard"
-    APP_VERSION: str = "2.0.0"
+    APP_NAME: str = "AI-Powered Email Threat Detection, GeoLocation & Forensic Intelligence Platform"
+    APP_SHORT_NAME: str = "PhishNet"
+    APP_VERSION: str = "3.0.0"
     DEBUG: bool = False
 
     # ── Database ─────────────────────────────────────────
@@ -82,6 +85,44 @@ class Settings(BaseSettings):
     # Set to True once app/integrations/virustotal.py is wired up.
     # When False, attachment analysis runs static-only (no VT hash lookups).
     ENABLE_VT_HASH_LOOKUP: bool = False
+
+    # ── Header Forensics ─────────────────────────────────
+    # Preserve raw RFC822 bytes (gzip) + full header block for evidence.
+    PRESERVE_RAW_EMAIL: bool = True
+    # Active DNS validation of SPF/DMARC/DKIM records (network lookups).
+    # Disabled by default: tests and offline demos must not require DNS.
+    HEADER_DNS_CHECKS_ENABLED: bool = False
+
+    # ── Origin / IP intelligence (Week 2) ────────────────
+    # ipwho.is free GeoIP API (no key). Cached in DB.
+    GEOIP_PROVIDER: str = "ipwhois"        # ipwhois | maxmind | none
+    MAXMIND_DB_PATH: str = ""
+    IP_INTEL_CACHE_DAYS: int = 30
+    # Auto-fill missing trace IPs in the background on first view.
+    IP_INTEL_AUTO_ENRICH: bool = True
+
+    # DNS blocklist reputation (off by default — DNS must be explicit).
+    DNSBL_ENABLED: bool = False
+    DNSBL_ZONES: str = "bl.spamcop.net"    # comma-separated
+
+    # ── Domain intelligence (GET /domains/{domain}/intel + attribution) ──
+    # Live DNS posture (MX/NS/SPF/DMARC) and RDAP registration lookups.
+    # Offline by default: tests and demos must not require the network.
+    DOMAIN_INTEL_DNS_ENABLED: bool = False
+    DOMAIN_INTEL_RDAP_ENABLED: bool = False
+
+    # ── Privacy / compliance ─────────────────────────────
+    MASK_PII: bool = False
+    RETENTION_DAYS: int = 90
+
+    @property
+    def raw_email_dir(self) -> str:
+        """Directory for gzipped raw RFC822 evidence files."""
+        if self.RAW_EMAIL_DIR:
+            return self.RAW_EMAIL_DIR
+        return os.path.join(self.ATTACHMENT_DIR, "raw_emails")
+
+    RAW_EMAIL_DIR: str = ""
 
     model_config = {
         "env_file": ".env",

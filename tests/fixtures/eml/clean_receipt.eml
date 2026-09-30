@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from mx1.example.org (mx1.example.org) [198.51.100.11] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=example.org dkim=pass header.d=example.org dmarc=pass header.from=example.org
+From: Orders <orders@example.org>
+To: alice@example.com
+Subject: Receipt for order #5521
+Message-ID: <clean-receipt-002@orders.example.org>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Thanks for your purchase. Order 5521 shipped yesterday. View details in your account dashboard.

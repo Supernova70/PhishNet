@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from mx1.parcel-redelivery.org (mx1.parcel-redelivery.org) [203.0.113.20] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=parcel-redelivery.org dkim=none dmarc=none
+From: Parcel Service <track@parcel-redelivery.org>
+To: alice@example.com
+Subject: Delivery attempt 1231 failed
+Message-ID: <bulk-campaign-019-1@parcel-redelivery.org>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+We could not deliver parcel #1231. Confirm your address details and pay the $2.99 re-delivery fee: https://parcel-redelivery.org/track

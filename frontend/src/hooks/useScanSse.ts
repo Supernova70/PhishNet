@@ -55,6 +55,8 @@ export function useScanSse({
     setConnected(false);
   }, []);
 
+  const connectRef = useRef<() => void>(() => {});
+
   const connect = useCallback(() => {
     if (!enabled || !scanId) return;
     cleanup();
@@ -92,12 +94,16 @@ export function useScanSse({
       setError('Connection lost');
       es.close();
       // Reconnect after 3 seconds
-      reconnectTimeoutRef.current = setTimeout(connect, 3000);
+      reconnectTimeoutRef.current = setTimeout(() => connectRef.current(), 3000);
     };
   }, [scanId, enabled, onEvent, onComplete, onError, cleanup]);
 
   useEffect(() => {
-    connect();
+    connectRef.current = connect;
+  }, [connect]);
+
+  useEffect(() => {
+    queueMicrotask(() => connectRef.current());
     return cleanup;
   }, [connect, cleanup]);
 

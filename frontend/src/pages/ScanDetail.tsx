@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Brain, Link2, Paperclip, ExternalLink, AlertTriangle, ChevronDown, ChevronRight, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Brain, Link2, Paperclip, ExternalLink, AlertTriangle, ChevronDown, ChevronRight, ShieldAlert, Radio, FileText } from 'lucide-react';
 import { getScan, getEmail, resolveScreenshotUrl, getThreatSummary, type ThreatSummary } from '../api/client';
 import { ClassificationBadge, ScoreBadge } from '../components/ui/Badge';
 import { ScoreBar } from '../components/ui/ScoreBar';
 import { ScoreGauge } from '../components/ui/ScoreGauge';
 import { JsonViewer } from '../components/ui/JsonViewer';
+import { HeaderForensics } from '../components/forensics/HeaderForensics';
 import { formatDistanceToNow, format } from 'date-fns';
 import type { Scan, EmailDetail, ScanBreakdown } from '../types';
 import { getVtUrlLink, getVtFileLink } from '../utils/virustotal';
@@ -342,14 +343,16 @@ export function ScanDetail() {
 
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
     getScan(Number(id))
       .then(async (s) => {
         setScan(s);
         try {
           const em = await getEmail(s.email_id);
           setEmail(em);
-        } catch {}
+        } catch {
+          /* email context is optional — scan still renders */
+        }
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : 'Failed to load scan'))
       .finally(() => setLoading(false));
@@ -397,11 +400,34 @@ export function ScanDetail() {
       {/* Email Info */}
       {email && (
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-default)', borderRadius: 8, padding: '16px 20px' }}>
-          <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Email Details</p>
-          <p style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>{email.subject}</p>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>From: {email.sender} · {email.date ? format(new Date(email.date), 'PPpp') : '—'}</p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Email Details</p>
+              <p style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>{email.subject}</p>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 4 }}>From: {email.sender} · {email.date ? format(new Date(email.date), 'PPpp') : '—'}</p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <button
+                className="btn-ghost"
+                onClick={() => navigate(`/emails/${scan.email_id}/trace`)}
+                style={{ fontSize: '0.72rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <Radio size={12} /> Origin Trace
+              </button>
+              <button
+                className="btn-ghost"
+                onClick={() => navigate(`/scans/${scan.id}/report`)}
+                style={{ fontSize: '0.72rem', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <FileText size={12} /> Forensic Report
+              </button>
+            </div>
+          </div>
         </div>
       )}
+
+      {/* Header forensics */}
+      <HeaderForensics emailId={scan.email_id} flags={bd?.header?.flags ?? []} rules={bd?.header?.rules ?? []} />
 
       {/* Engine Breakdown */}
       {v && (

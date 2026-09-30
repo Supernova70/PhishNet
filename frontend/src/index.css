@@ -288,3 +288,111 @@ body {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ─── Print / Save-as-PDF ───────────────────────────────────────────────────── */
+/* Report printing: hide chrome, un-clip content, force a light palette.        */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  body {
+    overflow: visible !important;
+  }
+
+  /* Light palette for the dark-theme CSS variables */
+  :root {
+    --bg-page:     #ffffff;
+    --bg-panel:    #ffffff;
+    --bg-card:     #ffffff;
+    --bg-input:    #f6f7f9;
+    --border-subtle:   #e5e7eb;
+    --border-default:  #d1d5db;
+    --border-emphasis: #9ca3af;
+    --danger-subtle:  #fee2e2;
+    --warning-subtle: #fef3c7;
+    --safe-subtle:    #d1fae5;
+    --text-primary:   #111827;
+    --text-secondary: #374151;
+    --text-muted:     #6b7280;
+    --text-danger:    #b91c1c;
+    --text-warning:   #b45309;
+    --text-safe:      #047857;
+    --primary-glow:   rgba(59, 130, 246, 0.08);
+  }
+
+  /* App chrome that must never print */
+  .app-sidebar,
+  .app-header,
+  .app-banner,
+  .no-print,
+  .toast-container {
+    display: none !important;
+  }
+
+  /* Un-clip the scroll containers so content isn't cut off */
+  .app-layout {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .app-column {
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .app-main {
+    overflow: visible !important;
+    height: auto !important;
+    background: #ffffff !important;
+  }
+
+  .app-page {
+    height: auto !important;
+    overflow: visible !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+
+  /* Tables: readable borders on white */
+  .dark-table thead tr {
+    background: #f3f4f6 !important;
+    border-bottom: 1px solid #d1d5db !important;
+  }
+
+  .dark-table thead th {
+    color: #374151 !important;
+  }
+
+  .dark-table tbody tr {
+    border-bottom: 1px solid #e5e7eb !important;
+  }
+
+  .dark-table tbody tr:hover {
+    background: transparent !important;
+  }
+
+  .dark-table tbody td {
+    color: #1f2937 !important;
+  }
+
+  .dark-input {
+    background: #ffffff !important;
+    border-color: #d1d5db !important;
+    color: #111827 !important;
+  }
+
+  /* Cards/sections: hairline borders instead of glows/shadows */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+}

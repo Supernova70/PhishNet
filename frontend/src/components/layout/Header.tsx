@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { RefreshCw, AlertTriangle, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { fetchEmails } from '../../api/client';
+import { AlertBell } from './AlertBell';
 
 interface HeaderProps {
   title: string;
@@ -48,7 +49,7 @@ export function Header({
   };
 
   return (
-    <header style={{
+    <header className="app-header no-print" style={{
       height: 56,
       background: 'var(--bg-panel)',
       borderBottom: '1px solid var(--border-default)',
@@ -57,23 +58,35 @@ export function Header({
       padding: '0 20px',
       gap: 16,
       position: 'relative',
-      overflow: 'hidden',
+      // Above <main>: page panels use transforms (framer-motion) which
+      // create z-index:0 stacking contexts that would otherwise paint
+      // over the header's dropdowns (alert bell).
+      zIndex: 10,
       flexShrink: 0,
     }}>
-      {/* Scanline animation */}
+      {/* Scanline animation — clipped to the header box by its own
+          wrapper so the header itself can keep overflow: visible */}
       <div
-        className="animate-scanline"
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          width: 60,
-          height: '100%',
-          background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.06), transparent)',
+          inset: 0,
+          overflow: 'hidden',
           pointerEvents: 'none',
           zIndex: 0,
         }}
-      />
+      >
+        <div
+          className="animate-scanline"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: 60,
+            height: '100%',
+            background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.06), transparent)',
+          }}
+        />
+      </div>
 
       {/* Title + Breadcrumb */}
       <div style={{ flex: 1, zIndex: 1 }}>
@@ -109,6 +122,9 @@ export function Header({
             </span>
           </div>
         )}
+
+        {/* Alert feed bell */}
+        <AlertBell />
 
         {/* Fetch Button */}
         <button className="btn-primary" onClick={handleFetch} disabled={fetching} style={{ fontSize: '0.8rem', padding: '6px 14px' }}>

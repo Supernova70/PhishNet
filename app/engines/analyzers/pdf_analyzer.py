@@ -34,11 +34,27 @@ def _walk_pdf_objects(reader) -> List[str]:
     """
     Walk all PDF objects and collect dangerous key names found.
     Returns a list of found dangerous key names.
+
+    Guards against pathological PDFs: object graphs may contain cycles
+    (page /Parent chains, shared refs) and deep nesting. A visited set plus
+    a depth cap keep the walk finite — without them a cyclic PDF spins
+    forever at Python's recursion limit (the old code caught RecursionError
+    and kept looping, pegging a CPU until the scan queue deadlocked).
     """
     found_keys: List[str] = []
+    MAX_DEPTH = 30
+    visited_ids: set[int] = set()
+    pinned: List[object] = []      # keeps id() values stable (objects may be unhashable)
 
-    def _check_obj(obj):
+    def _check_obj(obj, depth: int = 0):
         """Recursively check a PDF object for dangerous keys."""
+        if depth > MAX_DEPTH:
+            return
+        obj_id = id(obj)
+        if obj_id in visited_ids:
+            return
+        visited_ids.add(obj_id)
+        pinned.append(obj)
         try:
             if hasattr(obj, "keys"):
                 for key in obj.keys():
@@ -47,7 +63,9 @@ def _walk_pdf_objects(reader) -> List[str]:
                         found_keys.append(key_str)
                     # Recurse into nested objects
                     try:
-                        _check_obj(obj[key])
+                        _check_obj(obj[key], depth + 1)
+                    except RecursionError:
+                        return
                     except Exception:
                         pass
         except Exception:
@@ -56,6 +74,8 @@ def _walk_pdf_objects(reader) -> List[str]:
     # Check document catalog
     try:
         _check_obj(reader.trailer)
+    except RecursionError:
+        pass
     except Exception:
         pass
 
@@ -63,6 +83,8 @@ def _walk_pdf_objects(reader) -> List[str]:
     try:
         for page in reader.pages:
             _check_obj(page)
+    except RecursionError:
+        pass
     except Exception:
         pass
 

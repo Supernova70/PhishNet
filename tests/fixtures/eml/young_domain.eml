@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from ns1.secure-delivery-update2026.xyz (ns1.secure-delivery-update2026.xyz) [203.0.113.101] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=secure-delivery-update2026.xyz dkim=none dmarc=none
+From: Delivery Desk <updates@secure-delivery-update2026.xyz>
+To: alice@example.com
+Subject: Package held — update your details
+Message-ID: <young-domain-014@secure-delivery-update2026.xyz>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Your parcel is on hold. Confirm your identity and address details to reschedule delivery: https://secure-delivery-update2026.xyz/reschedule

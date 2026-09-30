@@ -1,0 +1,13 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from webmail.company-mail.co (webmail.company-mail.co) [198.51.100.52] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=pass smtp.mailfrom=company-mail.co dkim=none dmarc=none
+From: CEO Marcus Reed <m.reed@company-mail.co>
+To: alice@example.com
+Subject: Confidential: updated supplier payment
+Message-ID: <payment-diversion-007@company-mail.co>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+Reply-To: payables@company-mail.co
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Hi, I am tied up in a meeting and cannot call. Our beneficiary bank account details have changed — please wire the transfer of $45,000 to the new account today. Keep this between us; do not discuss with the wider team. Kindly process the payment before end of day. IBAN GB29NWBK60161331926819, SWIFT NWBKGB2L.

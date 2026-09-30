@@ -1,10 +1,12 @@
-# 🛡️ Phishing Guard V2
+# 🛡️ AI-Powered Email Threat Detection, GeoLocation and Forensic Intelligence Platform
 
-> **AI-powered email phishing detection system** — analyzes email text, URLs, and attachments using three independent engines and produces a risk verdict stored in PostgreSQL.
+> **SIH 26106** — multi-engine phishing/BEC detection with **header forensics, origin traceability (GeoIP/ASN/VPN-TOR), attribution graph & campaign clustering, chain-of-custody evidence and forensic reports.**
+> (System name **PhishNet** — repo previously branded *Phishing Guard V2*.)
 
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green.svg)](https://fastapi.tiangolo.com)
 [![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-blue.svg)](https://postgresql.org)
+[![Tests](https://img.shields.io/badge/tests-348%20passed%20%7C%2078%25%20cov-brightgreen.svg)](#testing)
 
 ---
 
@@ -12,17 +14,24 @@
 
 | Engine | Technology | What It Detects |
 |---|---|---|
-| 🤖 AI Engine | scikit-learn (TF-IDF + Logistic Regression) | Phishing language patterns in email body |
+| 🤖 AI Engine | scikit-learn (TF-IDF + Logistic Regression) + BEC rule categories + lookalike-brand matcher | Phishing language patterns, payment diversion, fake invoices, credential harvest, exec impersonation, urgency threats, homoglyph/lookalike domains |
+| 📜 Header Forensics | RFC822 raw retention, Received-chain parser, SPF/DKIM/DMARC validation, anomaly rules | Display-name spoof, Reply-To hijack, auth failures, relay forgery, non-monotonic timestamps → `header_score` |
+| 🌍 Origin & Geo Intel | `ipwhois.io` GeoIP (+ optional MaxMind), ASN/RDAP, hosting lists, VPN/TOR flags, DNSBL | Sender origin IP, geolocation, ASN/ISP, anonymizing infrastructure, blocklist presence |
 | 🔗 URL Engine | Heuristics + VirusTotal + policy-gated Playwright | Suspicious URL text, reputation, redirects, and rendered phishing forms |
 | 📎 File Engine | pefile, PyPDF2, olefile, YARA rules | Malware in email attachments |
+| 🕸️ Correlation | IoC store, attribution graph, union-find campaign clustering | Shared infrastructure across attacks, attribution verdicts (spoofed domain / compromised account / anonymized infra / direct actor) |
 
-- **REST API** with Swagger UI at `/docs`
-- **Incremental IMAP fetch** — only downloads new emails each time
-- **Probabilistic scoring** — combines all three engines into one final risk score
-- **PostgreSQL storage** — full history of emails, scans, verdicts, and per-URL results
-- **Alembic migrations** — schema versioned, safe to re-run
+- **REST API** with Swagger UI at `/docs` — headers, trace, IPs, indicators, graph, campaigns, report, evidence, audit, alerts
+- **Incremental IMAP fetch** — only downloads new emails each time; raw RFC822 retained (gzip + sha256)
+- **4-signal probabilistic fusion** — `p_safe = (1-p_ai)(1-p_url)(1-p_att)(1-p_header)`, unchanged safe/suspicious/dangerous thresholds
+- **Alert feed** — score/spoof/BEC triggers → bell dropdown + `/alerts`, mark-as-read persisted
+- **Forensic report** — per-scan JSON report with integrity sha256, chain-of-custody block, export seals an evidence row
+- **Compliance layer** — hash-chained evidence log, append-only audit trail, PII masking (`MASK_PII`), retention purge script
+- **PostgreSQL storage** — full history of emails, scans, verdicts, indicators, campaigns, intel cache
+- **Alembic migrations** — schema versioned (0001→0008), guarded and safe to re-run
 - **Dynamic URL observation** — optional headless Chromium stage with SSRF controls, redirect/DOM/TLS evidence, screenshots, and explainable scoring
-- **Non-blocking scans** — scan creation returns HTTP 202; the UI polls pending/running scans
+- **Non-blocking scans** — scan creation returns HTTP 202; per-scan + global SSE progress streams
+- **CI** — GitHub Actions: backend (pytest, coverage ≥75%), frontend (eslint + build), docker build
 
 ### Dynamic URL analysis status
 
@@ -273,18 +282,34 @@ app/
 │
 ├── api/                 # HTTP route handlers
 │   ├── email.py         # /emails endpoints
-│   ├── scan.py          # /scans endpoints
+│   ├── scan.py          # /scans endpoints (+ global/per-scan SSE)
+│   ├── intel.py         # /emails/{id}/headers|trace, /ips, /indicators, /graph, /campaigns
+│   ├── report.py        # /scans/{id}/report (forensic report + export seal)
+│   ├── evidence.py      # /evidence, /audit, raw evidence download
+│   ├── alerts.py        # /alerts feed + mark-as-read
 │   └── health.py        # /health
 │
 ├── models/              # SQLAlchemy ORM table definitions
 │   ├── email.py         # Email, Attachment
+│   ├── email_source.py  # EmailSource (raw retention), ReceivedHop, AuthResult
 │   ├── scan.py          # Scan, Verdict
 │   ├── url_result.py    # UrlResult (per-URL rows)
+│   ├── indicator.py     # IoC rows (per scan)
+│   ├── campaign.py      # Campaign clusters
+│   ├── ip_intel.py      # Geo/ASN/reputation cache
+│   ├── evidence.py      # Hash-chained chain-of-custody
+│   ├── audit_log.py     # Append-only audit trail
+│   ├── alert.py         # Alert feed rows
 │   └── fetch_state.py   # IMAP UID cursor
 │
 ├── services/            # Business logic
-│   ├── email_service.py # IMAP fetch + parse + store
-│   └── scan_service.py  # Scan pipeline orchestration
+│   ├── email_service.py # IMAP fetch + parse + store (raw RFC822 retention)
+│   ├── scan_service.py  # Scan pipeline orchestration (4-signal fusion)
+│   ├── alert_service.py # Alert triggers (score / spoof / BEC)
+│   ├── evidence_service.py # Chain-of-custody + audit
+│   ├── ip_intel_service.py # Cache-first geo enrichment
+│   ├── retention.py     # Evidence retention purge
+│   └── pii.py           # PII masking helpers
 │
 ├── security/
 │   └── url_safety.py         # SSRF-safe URL, DNS, IPv4, and IPv6 validation
@@ -294,6 +319,12 @@ app/
 │
 └── engines/             # Analysis engines
     ├── text_analyzer.py      # AI engine (sklearn)
+    ├── header_analyzer.py    # Header forensics orchestration → header_score
+    ├── headers/              # received_parser, auth_parser, anomaly_rules, dns_checks
+    ├── bec_analyzer.py       # BEC category rules (weak supervision)
+    ├── lookalike.py          # Homoglyph / Levenshtein brand matcher
+    ├── intel/                # origin, geo_provider, asn_rdap, vpn_tor, dnsbl
+    ├── correlation/          # ioc_store, graph_builder, campaign_clustering, attribution
     ├── url_analyzer.py       # Static + VT + optional dynamic orchestration
     ├── dynamic/
     │   ├── models.py              # Browser/result contracts
@@ -340,6 +371,25 @@ All endpoints available at `http://localhost:8000/docs` (Swagger UI).
 
 Poll `GET /scans/42` until `status` is `complete` or `error`. FastAPI background tasks keep the HTTP endpoint responsive, but they are not a durable queue: work can be lost if the API process restarts. A separate durable worker is a future production improvement.
 
+### Forensics & Intelligence Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/emails/{id}/headers` | Raw headers, parsed Received hops, SPF/DKIM/DMARC results (audited) |
+| `GET` | `/emails/{id}/trace` | Origin hop + geo/ASN/VPN-TOR intel (`?refresh=true` forces live lookup) |
+| `GET` | `/ips/{ip}` | IP intelligence — cache-only unless `?refresh=true` |
+| `GET` | `/ips/stats` | Top origin countries (dashboard, cache-only) |
+| `GET` | `/indicators` | Global IoC search aggregated across scans |
+| `GET` | `/graph` | Attribution graph JSON (`nodes`/`edges`, 500-node cap) |
+| `GET` | `/campaigns` · `/campaigns/{id}` | Campaign list + members |
+| `POST` | `/campaigns/recluster` | Rebuild clusters from existing scans |
+| `GET` | `/scans/{id}/report` | Forensic report (+ `?export=true` seals evidence row) |
+| `GET` | `/evidence` · `/evidence/{id}/verify` | Chain-of-custody list + hash verification |
+| `GET` | `/emails/{id}/evidence/raw` | Raw RFC822 download (audited) |
+| `GET` | `/audit` | Append-only audit log |
+| `GET` | `/alerts` | Alert feed (`?unread=true`, unread count) |
+| `POST` | `/alerts/{id}/read` · `/alerts/read-all` | Persist read state |
+
 ### Health
 
 | Method | Path | Description |
@@ -375,19 +425,28 @@ alembic upgrade head  # Now run only 0002 onwards
 ## Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (offline; network integrations are injected/mocked)
 pytest
 
-# With coverage report
+# With coverage report (CI gate: ≥75% on app/)
 pytest --cov=app --cov-report=term-missing
 
 # Run a specific test file
 pytest tests/test_url_analyzer.py -v
 
+# Forensics / intel / compliance / alerts suites
+pytest tests/test_api_intel.py tests/test_evidence_compliance.py \
+       tests/test_alerts.py tests/test_platform_hardening.py -v
+
 # Dynamic URL foundation (offline; no live malicious URLs)
 pytest tests/test_url_safety.py tests/test_dynamic_url_policy.py \
        tests/test_dynamic_url_scoring.py tests/test_dynamic_url_analyzer.py -v
+
+# Demo corpus end-to-end (import 24 crafted .eml, scan, cluster)
+./scripts/demo.sh
 ```
+
+Two tests require optional binaries not available in every environment and are excluded from pass expectations locally: `test_playwright_browser_integration` (needs Chromium) and `test_yara_scanner` (needs the yara wheel). CI installs Chromium for the browser test.
 
 The focused dynamic suite covers policy decisions, public/private IPv4 and IPv6 handling, mixed DNS answers, ports and credentials, Public Suffix List domain comparison, every scoring rule, score capping, adapter injection, and static-score fallback.
 
@@ -470,6 +529,8 @@ ports:
 
 Detailed documentation:
 
+- [SIH 26106 implementation plan](docs/SIH_IMPLEMENTATION_PLAN.md) — gap analysis, workstreams, 3-week schedule.
+- [SIH problem-statement mapping](docs/SIH_REPORT_MAPPING.md) — every PS bullet → feature → code → test.
 - [Complete project guide](docs/PROJECT_DETAIL.md) — architecture, every major feature, operations, testing, and CI/CD.
 - [URL engine walkthrough](docs/URL_ENGINE_WALKTHROUGH.md) — static, reputation, and dynamic browser analysis with examples.
 - [Dynamic URL eight-week plan](docs/DYNAMIC_URL_ANALYSIS_8_WEEK_PLAN.md) — milestone schedule and evaluation plan.

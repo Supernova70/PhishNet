@@ -1,0 +1,12 @@
+Received: from mx.corp.example (mx.corp.example) [10.0.0.5] by inbox.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:02:00 +0000
+Received: from relay.bad-net.example (relay.bad-net.example) [198.51.100.77] by mx.corp.example for <alice@example.com>; Mon, 05 Jan 2026 09:01:00 +0000
+Authentication-Results: mx.corp.example; spf=fail smtp.mailfrom=forger.example dkim=fail dmarc=fail header.from=forger.example
+From: IT Helpdesk <helpdesk@forger.example>
+To: alice@example.com
+Subject: Password reset required
+Message-ID: <spf-dkim-fail-005@forger.example>
+Date: Mon, 05 Jan 2026 09:00:00 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Your password expires today. Update your password immediately at http://forger.example/reset to keep your mailbox active.

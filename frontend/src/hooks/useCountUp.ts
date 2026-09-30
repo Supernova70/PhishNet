@@ -5,11 +5,6 @@ export function useCountUp(target: number, duration = 1200, delay = 0) {
   const frameRef = useRef<number>(0);
 
   useEffect(() => {
-    if (target === 0) {
-      setCount(0);
-      return;
-    }
-
     const startTime = performance.now() + delay;
     let started = false;
 

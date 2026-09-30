@@ -38,7 +38,13 @@ function buildChartData(scans: Scan[]) {
   return days;
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface TimelineTooltipProps {
+  active?: boolean;
+  label?: string;
+  payload?: Array<{ dataKey?: string; stroke?: string; value?: number }>;
+}
+
+const CustomTooltip = ({ active, payload, label }: TimelineTooltipProps) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
@@ -49,7 +55,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
       boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
     }}>
       <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>{label}</p>
-      {payload.map((p: any) => (
+      {(payload ?? []).map((p) => (
         <div key={p.dataKey} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.stroke, display: 'inline-block' }} />
           <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>

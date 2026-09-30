@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import SessionLocal, get_db
 from app.models.email import Email
+from app.models.indicator import Indicator
 from app.models.scan import Scan, ScanStatus, Verdict
 from app.schemas.scan import ScanListResponse, ScanOut, ScanTriggerResponse
 from app.services.scan_service import ScanService
@@ -25,24 +26,43 @@ from app.services.scan_service import ScanService
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/scans", tags=["Scans"])
 
-SCAN_TIMEOUT_SECONDS = 120
+SCAN_TIMEOUT_SECONDS = 240
 
 
-def _run_scan_task(scan_id: int) -> None:
-    """Run a scan after the HTTP response using a task-owned DB session."""
-    db = SessionLocal()
+def _mark_scan_error(scan_id: int) -> None:
+    """Mark a scan as ERROR using a fresh short-lived session (timeout path —
+    the original session still belongs to the abandoned worker thread)."""
+    err_db = SessionLocal()
     try:
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(ScanService(db).run_scan_by_id, scan_id)
-            future.result(timeout=SCAN_TIMEOUT_SECONDS)
-    except FuturesTimeoutError:
-        logger.error("Scan %s timed out after %ds — marking as error", scan_id, SCAN_TIMEOUT_SECONDS)
-        db.rollback()
-        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        scan = err_db.query(Scan).filter(Scan.id == scan_id).first()
         if scan:
             scan.status = ScanStatus.ERROR.value
             scan.completed_at = datetime.now(UTC).replace(tzinfo=None)
-            db.commit()
+            err_db.commit()
+    except Exception:
+        err_db.rollback()
+        logger.exception("Failed to mark timed-out scan %s as error", scan_id)
+    finally:
+        err_db.close()
+
+
+def _run_scan_task(scan_id: int) -> None:
+    """Run a scan after the HTTP response using a task-owned DB session.
+
+    Uses shutdown(wait=False) on timeout — a context-managed executor
+    would block forever in __exit__ waiting for the hung thread, so the
+    timeout handler never executed and the scan stayed RUNNING forever.
+    """
+    db = SessionLocal()
+    executor = ThreadPoolExecutor(max_workers=1)
+    timed_out = False
+    try:
+        future = executor.submit(ScanService(db).run_scan_by_id, scan_id)
+        future.result(timeout=SCAN_TIMEOUT_SECONDS)
+    except FuturesTimeoutError:
+        timed_out = True
+        logger.error("Scan %s timed out after %ds — marking as error", scan_id, SCAN_TIMEOUT_SECONDS)
+        _mark_scan_error(scan_id)
     except Exception:
         logger.exception("Background scan %s failed", scan_id)
         db.rollback()
@@ -52,12 +72,34 @@ def _run_scan_task(scan_id: int) -> None:
             scan.completed_at = datetime.now(UTC).replace(tzinfo=None)
             db.commit()
     finally:
-        db.close()
+        executor.shutdown(wait=False, cancel_futures=True)
+        if not timed_out:
+            db.close()   # on timeout the session belongs to the still-running thread
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Fixed-path routes (must come before parameterized routes)
 # ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get("/events")
+async def stream_global_events():
+    """Global SSE feed: every terminal (complete/error) or high-risk
+    (score ≥ 70) scan across the platform.
+
+    Declared ahead of `/{scan_id}` so `/scans/events` is not shadowed.
+    """
+    queue: asyncio.Queue = asyncio.Queue(maxsize=200)
+    _global_subscribers.append(queue)
+    return StreamingResponse(
+        _global_event_generator(queue),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
 
 @router.get("", response_model=ScanListResponse)
 async def list_scans(
@@ -117,7 +159,7 @@ async def export_scans_csv(
     for scan in scans:
         verdict = scan.verdict
         email = scan.email
-        bd = verdict.breakdown if verdict else {}
+        bd = (verdict.breakdown if verdict and verdict.breakdown else {}) or {}
         url_data = bd.get("url", {})
         att_data = bd.get("attachment", {})
 
@@ -402,21 +444,92 @@ async def get_threat_summary(scan_id: int, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/{scan_id}/attribution")
+async def get_scan_attribution(scan_id: int, db: Session = Depends(get_db)):
+    """Attribution verdict + factors + IoCs for one scan (plan §5, B2).
+
+    The verdict's stored `breakdown.attribution` is authoritative (pure,
+    evidence-based); indicators ride along for one-shot rendering.
+    """
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    verdict = db.query(Verdict).filter(Verdict.scan_id == scan_id).first()
+    attribution = (verdict.breakdown or {}).get("attribution") if verdict else None
+    if not attribution:
+        raise HTTPException(
+            status_code=404,
+            detail="Attribution not available (scan has no verdict yet)",
+        )
+    indicators = (
+        db.query(Indicator)
+        .filter(Indicator.scan_id == scan_id)
+        .order_by(Indicator.type, Indicator.value)
+        .all()
+    )
+    return {
+        "scan_id": scan_id,
+        "attribution": attribution,
+        "indicators": [i.to_dict() for i in indicators],
+    }
+
+
+@router.get("/{scan_id}/indicators")
+async def get_scan_indicators(scan_id: int, db: Session = Depends(get_db)):
+    """IoC list extracted from a single scan (plan §5, B3)."""
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    rows = (
+        db.query(Indicator)
+        .filter(Indicator.scan_id == scan_id)
+        .order_by(Indicator.type, Indicator.value)
+        .all()
+    )
+    return {"count": len(rows), "indicators": [i.to_dict() for i in rows]}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # SSE (Server-Sent Events) for Real-Time Scan Progress
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # In-memory subscriber registry: scan_id -> list of queues
 _scan_subscribers: dict[int, list[asyncio.Queue]] = defaultdict(list)
+# Global alert feed subscribers (all terminal / high-risk scans)
+_global_subscribers: list[asyncio.Queue] = []
+
+_GLOBAL_EVENT_TYPES = ("complete", "error")
 
 
 def publish_scan_event(scan_id: int, event: dict):
-    """Publish a scan event to all subscribers of that scan."""
-    queues = _scan_subscribers.get(scan_id, [])
+    """Publish a scan event to that scan's subscribers and, when it is
+    terminal or high-risk, to the global alert feed."""
+    queues = list(_scan_subscribers.get(scan_id, []))
+    is_terminal = event.get("type") in _GLOBAL_EVENT_TYPES
+    is_high_risk = float(event.get("final_score") or 0) >= 70
+    if is_terminal or is_high_risk:
+        queues += _global_subscribers
     for q in queues:
         try:
             q.put_nowait(event)
         except asyncio.QueueFull:
+            pass
+
+
+async def _global_event_generator(queue: asyncio.Queue) -> AsyncGenerator[str, None]:
+    """Unbounded SSE stream for the alert feed (no per-scan end)."""
+    try:
+        yield f"data: {json.dumps({'type': 'connected', 'scope': 'global'})}\n\n"
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                yield f"data: {json.dumps(event)}\n\n"
+            except asyncio.TimeoutError:
+                yield f": keepalive\n\n"
+    finally:
+        try:
+            _global_subscribers.remove(queue)
+        except ValueError:
             pass
 
 

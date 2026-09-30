@@ -31,3 +31,12 @@ Thumbs.db
 
 .agent/
 graphify-out/
+
+# Coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Local dev database
+data/dev.db

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Activity, Database, Server, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, Globe2 } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
-import { useSystemHealth, type HealthResponse } from '../hooks/useSystemHealth';
+import { useSystemHealth } from '../hooks/useSystemHealth';
 
 interface HealthSnapshot {
   time: number;
@@ -92,13 +92,14 @@ export function HealthPage() {
   }, [refresh]);
 
   useEffect(() => {
-    if (health) {
+    if (!health) return;
+    queueMicrotask(() => {
       setLatency(health.response_time_ms);
       setLastUpdated(new Date());
       setHistory((prev) => [...prev.slice(-19), {
         time: Date.now(), latency: health.response_time_ms, status: true,
       }]);
-    }
+    });
   }, [health]);
 
   const handleRefresh = async () => {
