@@ -147,3 +147,11 @@ class TestKeyRotation:
         assert st["available"] == 1
         assert st["invalid"] == 0
         assert st["total_calls"] == 2
+        by_id = {k["id"]: k for k in st["keys"]}
+        assert by_id[1]["state"] == "cooldown"
+        assert by_id[1]["masked"] == "cool…"
+        assert by_id[1]["calls"] == 1
+        assert by_id[1]["cooldown_remaining"] > 0
+        assert by_id[2]["state"] == "ready"
+        assert by_id[2]["calls"] == 1
+        assert by_id[2]["cooldown_remaining"] == 0

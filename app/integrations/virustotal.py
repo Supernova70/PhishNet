@@ -193,12 +193,29 @@ class VirusTotalClient:
             )
             invalid = sum(1 for s in states if s.invalid)
             calls = sum(s.calls for s in states)
+            keys = [
+                {
+                    "id": i + 1,
+                    "masked": f"{s.key[:6]}…",
+                    "state": (
+                        "invalid"
+                        if s.invalid
+                        else "cooldown"
+                        if s.cooldown_until > now
+                        else "ready"
+                    ),
+                    "cooldown_remaining": max(0, int(s.cooldown_until - now)),
+                    "calls": s.calls,
+                }
+                for i, s in enumerate(states)
+            ]
         return {
             "key_count": len(self._keys),
             "available": available,
             "cooling_down": cooling,
             "invalid": invalid,
             "total_calls": calls,
+            "keys": keys,
         }
 
     # ── Key pool internals ─────────────────────────────────────────────────────
