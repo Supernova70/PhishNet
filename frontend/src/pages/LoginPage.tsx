@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { ShieldCheck } from 'lucide-react';
+import { Shield, Lock, Mail } from 'lucide-react';
 import {
   getAuthConfig,
   postCredential,
@@ -157,17 +157,17 @@ export function LoginPage() {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <div
             style={{
-              width: 52,
-              height: 52,
-              borderRadius: 12,
-              background: 'rgba(59,130,246,0.12)',
-              border: '1px solid rgba(59,130,246,0.35)',
+              width: 32,
+              height: 32,
+              background: 'var(--primary-glow)',
+              border: '1px solid var(--primary)',
+              borderRadius: 8,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <ShieldCheck size={26} style={{ color: '#60a5fa' }} />
+            <Shield size={18} style={{ color: 'var(--primary)' }} />
           </div>
           <h1 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
             Phishing-Guard 2.0
@@ -228,15 +228,21 @@ export function LoginPage() {
           </p>
         )}
 
-        <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 16 }}>
-          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-            Private by design.
+        <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <Lock size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', textAlign: 'justify' }}>
+              Private by design.
+            </span>
           </div>
-          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
-            Connect your Gmail securely for read-only phishing analysis.
-            Phishing Guard scans your emails for threats without sending,
-            deleting, or modifying your email.
-          </p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <Mail size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0, textAlign: 'justify' }}>
+              Connect your Gmail securely for read-only phishing analysis.
+              Phishing Guard scans your emails for threats without sending,
+              deleting, or modifying your email.
+            </p>
+          </div>
         </div>
       </div>
     </div>
