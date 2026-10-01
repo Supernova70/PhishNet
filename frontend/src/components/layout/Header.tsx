@@ -42,9 +42,11 @@ export function Header({
       toast?.(`Fetched ${fetched} new email${fetched !== 1 ? 's' : ''}`, `${result.total_fetched} total processed`);
       onEmailsFetched?.();
     } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })
+        ?.response?.data?.detail;
       const msg = err instanceof Error && err.message === 'BACKEND_OFFLINE'
         ? 'Backend is offline'
-        : 'Failed to fetch emails';
+        : detail || 'Failed to fetch emails';
       toastError?.(msg);
     } finally {
       setFetching(false);

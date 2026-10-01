@@ -30,8 +30,15 @@ from email import policy
 from email.parser import BytesParser
 from sqlalchemy.orm import Session
 
+from app.auth.crypto import decrypt_secret_safe
 from app.config import get_settings
 from app.models.email import Email, Attachment
+from app.models.user import User
+from app.services.gmail_fetch import (
+    GmailAuthFailed,
+    GmailNotConnected,
+    fetch_recent_raw_messages,
+)
 from app.models.email_source import AuthResult, EmailSource, ReceivedHop
 from app.models.fetch_state import FetchState
 from app.engines.headers.auth_parser import compute_alignment, parse_auth_headers
@@ -60,7 +67,7 @@ class EmailService:
         Returns:
             (new_count, total_fetched)
         """
-        raw_emails, fetched_uids = self._fetch_from_imap(limit)
+        raw_emails, fetched_uids = self._fetch_recent_messages(limit)
         new_count = 0
 
         for email_data in raw_emails:
@@ -128,6 +135,71 @@ class EmailService:
             "failed": failures,
             "total": len(files),
         }
+
+    # ── Mailbox selection (per-account tenancy) ───────────────────────
+
+    def _fetch_recent_messages(
+        self, limit: int
+    ) -> Tuple[List[Dict[str, Any]], List[int]]:
+        """Fetch recent mail for THIS account only.
+
+        Priority: the account's own Gmail (OAuth refresh token from
+        consent) → legacy IMAP only when the configured mailbox belongs
+        to this same account → otherwise refuse. Never read the shared
+        operator mailbox on behalf of a different account.
+        """
+        user = self.db.get(User, self.user_id) if self.user_id else None
+        if user is not None:
+            refresh = (
+                decrypt_secret_safe(user.gmail_refresh_token_enc)
+                if user.gmail_connected
+                else None
+            )
+            if refresh:
+                try:
+                    return self._fetch_from_gmail(refresh, limit), []
+                except GmailAuthFailed as exc:
+                    if not self._legacy_imap_allowed(user):
+                        raise
+                    logger.warning(
+                        "Gmail token rejected for user %s (%s) — "
+                        "falling back to operator IMAP mailbox",
+                        user.id,
+                        exc,
+                    )
+            elif not self._legacy_imap_allowed(user):
+                raise GmailNotConnected(
+                    "Gmail is not connected for this account — sign in "
+                    "again with Google to grant read-only mailbox access"
+                )
+        return self._fetch_from_imap(limit)
+
+    @staticmethod
+    def _legacy_imap_allowed(user: Optional[User]) -> bool:
+        """Legacy IMAP is valid only for the account that owns the
+        configured mailbox (operator/demo). Scripts (no user) pass."""
+        if user is None:
+            return True
+        configured = (settings.EMAIL_ADDRESS or "").strip().lower()
+        return bool(configured) and configured == (user.email or "").strip().lower()
+
+    def _fetch_from_gmail(self, refresh_token: str, limit: int) -> List[Dict[str, Any]]:
+        """Download this account's newest INBOX mail via the Gmail API."""
+        cfg = get_settings()
+        raw_list = fetch_recent_raw_messages(
+            refresh_token,
+            cfg.GOOGLE_CLIENT_ID,
+            cfg.GOOGLE_CLIENT_SECRET,
+            limit=limit,
+        )
+        parsed: List[Dict[str, Any]] = []
+        for raw in raw_list:
+            try:
+                msg = BytesParser(policy=policy.default).parsebytes(raw)
+                parsed.append(self._parse_mime(msg, raw))
+            except Exception as exc:  # one bad message never aborts the batch
+                logger.error("Failed to parse Gmail message: %s", exc)
+        return parsed
 
     # ── IMAP Fetching ────────────────────────────────────
 

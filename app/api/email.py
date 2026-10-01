@@ -20,6 +20,7 @@ from app.schemas.email import (
 from app.schemas.scan import ScanOut
 from app.models.user import User
 from app.services.email_service import EmailService
+from app.services.gmail_fetch import GmailAuthFailed, GmailNotConnected
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/emails", tags=["Emails"])
@@ -47,6 +48,16 @@ async def fetch_emails(
             status="success",
             new_emails=new_count,
             total_fetched=total_fetched,
+        )
+    except GmailNotConnected as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except GmailAuthFailed:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Gmail access expired or was revoked — reconnect Gmail "
+                "by signing in with Google again"
+            ),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Email fetch failed: {str(e)}")
