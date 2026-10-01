@@ -22,6 +22,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import type { Email, EmailDetail, Attachment } from '../types';
 
 type FilterType = 'all' | 'has_attachments' | 'scanned' | 'unscanned';
+type InboxSort = 'newest' | 'oldest' | 'sender' | 'subject' | 'score';
 
 // ─── Sender Avatar ─────────────────────────────────────────────────────────────
 function SenderAvatar({ sender }: { sender: string }) {
@@ -374,9 +375,14 @@ function EmailDetailPanel({ emailId, onScanComplete }: { emailId: number; onScan
   const [detail, setDetail] = useState<EmailDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'text' | 'html' | null>(null);
+  const [htmlHeight, setHtmlHeight] = useState(360);
 
   useEffect(() => {
-    queueMicrotask(() => setLoading(true));
+    queueMicrotask(() => {
+      setLoading(true);
+      setViewMode(null);
+      setHtmlHeight(360);
+    });
     getEmail(emailId).then(setDetail).finally(() => setLoading(false));
   }, [emailId]);
 
@@ -452,27 +458,43 @@ function EmailDetailPanel({ emailId, onScanComplete }: { emailId: number; onScan
         </div>
 
         {activeMode === 'text' ? (
-          <pre className="font-mono" style={{
-            fontSize: '0.78rem',
-            color: 'var(--text-secondary)',
-            lineHeight: 1.7,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            background: 'var(--bg-input)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 6,
-            padding: 16,
-            minHeight: 120,
-          }}>
+          <pre
+            className="font-mono"
+            style={{
+              fontSize: '0.78rem',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.7,
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              minWidth: 0,
+              maxWidth: '100%',
+              // Explicit minHeight would otherwise become the flex-shrink
+              // floor and collapse long emails to 120px (text spilling over
+              // sibling elements). Keep the box at its natural height.
+              flexShrink: 0,
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 6,
+              padding: 16,
+              minHeight: 120,
+              boxSizing: 'border-box',
+            }}
+          >
             {detail.body_text ?? '(no plain text body)'}
           </pre>
         ) : (
-          <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
             {detail.has_html && detail.body_html ? (
               <iframe
                 srcDoc={detail.body_html}
                 sandbox="allow-same-origin"
-                style={{ width: '100%', minHeight: 300, border: 'none', background: 'white' }}
+                onLoad={(ev) => {
+                  try {
+                    const h = ev.currentTarget.contentDocument?.documentElement?.scrollHeight ?? 0;
+                    if (h > 0) setHtmlHeight(Math.min(Math.max(h + 20, 360), 6000));
+                  } catch { /* keep default height; iframe scrolls internally */ }
+                }}
+                style={{ width: '100%', height: htmlHeight, flexShrink: 0, border: 'none', background: 'white', display: 'block' }}
                 title="Email HTML Preview"
               />
             ) : (
@@ -505,6 +527,7 @@ export function EmailInbox() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('all');
+  const [sortKey, setSortKey] = useState<InboxSort>('newest');
   const [, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkScanning, setBulkScanning] = useState(false);
@@ -598,8 +621,18 @@ export function EmailInbox() {
     if (filter === 'has_attachments') list = list.filter((e) => e.has_attachments);
     else if (filter === 'scanned') list = list.filter((e) => e.scan_count > 0);
     else if (filter === 'unscanned') list = list.filter((e) => e.scan_count === 0);
-    return list;
-  }, [emails, search, filter]);
+
+    const ts = (e: Email) => new Date(e.date ?? e.fetched_at).getTime() || 0;
+    return [...list].sort((a, b) => {
+      switch (sortKey) {
+        case 'oldest': return ts(a) - ts(b);
+        case 'sender': return a.sender.localeCompare(b.sender);
+        case 'subject': return (a.subject ?? '').localeCompare(b.subject ?? '');
+        case 'score': return (b.latest_scan_score ?? -1) - (a.latest_scan_score ?? -1);
+        default: return ts(b) - ts(a); // newest received first
+      }
+    });
+  }, [emails, search, filter, sortKey]);
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
@@ -654,9 +687,27 @@ export function EmailInbox() {
               </button>
             ))}
           </div>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-            Showing {filtered.length} of {emails.length} emails
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              Showing {filtered.length} of {emails.length} emails
+            </span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Sort:</span>
+              <select
+                className="dark-input"
+                aria-label="Sort emails"
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as InboxSort)}
+                style={{ fontSize: '0.7rem', padding: '3px 6px' }}
+              >
+                <option value="newest">Latest received</option>
+                <option value="oldest">Oldest first</option>
+                <option value="sender">Sender A–Z</option>
+                <option value="subject">Subject A–Z</option>
+                <option value="score">Scan score</option>
+              </select>
+            </label>
+          </div>
           {/* Bulk Actions */}
           {selectedIds.size > 0 && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', background: 'var(--primary-glow)', borderRadius: 6, border: '1px solid var(--primary)' }}>
