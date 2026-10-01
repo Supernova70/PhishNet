@@ -137,7 +137,23 @@ export interface ScanBreakdown {
         severity: string;
         tags: string[];
         description: string;
+        explanation?: string;
+        matched_strings?: string[];
+        evidence?: Array<{
+          string: string;
+          offset: number;
+          preview: string;
+          count: number;
+        }>;
       }>;
+      // Explainable score contributions: why this file scored what it scored
+      score_breakdown?: Array<{
+        signal: string;
+        points: number;
+        detail?: string;
+        evidence?: string[];
+      }>;
+      embedded_urls?: string[];
       // VirusTotal hash lookup results
       sha256?: string;
       vt_malicious?: number;

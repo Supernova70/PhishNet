@@ -191,7 +191,15 @@ function UrlRow({ urlEntry }: { urlEntry: ScanBreakdown['url']['per_url'][0] }) 
 }
 
 // ─── YARA Match Card ──────────────────────────────────────────────────────────
-function YaraMatchCard({ match }: { match: { rule: string; severity: string; tags: string[]; description: string } }) {
+function YaraMatchCard({ match }: { match: {
+  rule: string;
+  severity: string;
+  tags: string[];
+  description: string;
+  explanation?: string;
+  matched_strings?: string[];
+  evidence?: Array<{ string: string; offset: number; preview: string; count: number }>;
+} }) {
   return (
     <div style={{
       background: 'var(--danger-subtle)',
@@ -203,9 +211,36 @@ function YaraMatchCard({ match }: { match: { rule: string; severity: string; tag
       alignItems: 'flex-start',
     }}>
       <AlertTriangle size={14} style={{ color: 'var(--danger)', flexShrink: 0, marginTop: 2 }} />
-      <div>
+      <div style={{ minWidth: 0, flex: 1 }}>
         <p className="font-mono" style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-danger)' }}>{match.rule}</p>
         <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>{match.description}</p>
+        {match.explanation && (
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4 }}>
+            {match.explanation}
+          </p>
+        )}
+        {match.evidence && match.evidence.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Matched evidence
+            </p>
+            {match.evidence.map((ev, i) => (
+              <p key={i} className="font-mono" style={{
+                fontSize: '0.7rem',
+                color: 'var(--text-secondary)',
+                background: 'var(--bg-input)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 4,
+                padding: '3px 8px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}>
+                {ev.string} @ 0x{ev.offset.toString(16)}{' · '}{ev.count}×{' · '}“{ev.preview}”
+              </p>
+            ))}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
           <span style={{ fontSize: '0.65rem', background: 'rgba(239,68,68,0.2)', color: 'var(--text-danger)', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>
             {match.severity.toUpperCase()}
@@ -503,6 +538,60 @@ export function ScanDetail() {
                     <ScoreBadge score={file.risk_score} />
                   </div>
                   <ScoreBar score={file.risk_score} label="Risk Score" />
+
+                  {/* Why this score — explainable breakdown */}
+                  {(file.score_breakdown?.length ?? 0) > 0 && (
+                    <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--bg-input)', borderRadius: 6, border: '1px solid var(--border-subtle)' }}>
+                      <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                        Why this score
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {file.score_breakdown!.map((entry, k) => (
+                          <div key={k} style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                            <span className="font-mono" style={{
+                              fontSize: '0.7rem', fontWeight: 700, flexShrink: 0, minWidth: 44, textAlign: 'right',
+                              color: entry.points >= 60 ? '#EF4444' : entry.points >= 25 ? '#F59E0B' : 'var(--text-muted)',
+                            }}>
+                              +{entry.points}
+                            </span>
+                            <div style={{ minWidth: 0 }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>{entry.signal}</span>
+                              {entry.detail && (
+                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}> — {entry.detail}</span>
+                              )}
+                              {entry.evidence && entry.evidence.length > 0 && (
+                                <div style={{ marginTop: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  {entry.evidence.map((ev, ei) => (
+                                    <p key={ei} className="font-mono" style={{
+                                      fontSize: '0.68rem', color: 'var(--text-secondary)',
+                                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                    }}>{ev}</p>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Embedded URLs (metadata vs payload) */}
+                  {(file.embedded_urls?.length ?? 0) > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <p style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                        Embedded URLs ({file.embedded_urls!.length})
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {file.embedded_urls!.map((u, ui) => (
+                          <p key={ui} className="font-mono" style={{
+                            fontSize: '0.68rem', color: 'var(--text-secondary)',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>{u}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* VT Hash Results */}
                   {(file.vt_total ?? 0) > 0 && (
