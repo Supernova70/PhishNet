@@ -126,8 +126,11 @@ def fetch_recent_raw_messages(
                 )
                 continue
             payload = resp.json() or {}
-            raw_b64 = (payload.get("payload") or {}).get("raw")
+            # With format=raw the RFC 822 bytes sit at the TOP level of
+            # the Message resource (payload.raw is only for parsed parts).
+            raw_b64 = payload.get("raw") or (payload.get("payload") or {}).get("raw")
             if not raw_b64:
+                logger.warning("gmail message %s has no raw payload", msg_id)
                 continue
             try:
                 raw = base64.urlsafe_b64decode(raw_b64 + "=" * (-len(raw_b64) % 4))

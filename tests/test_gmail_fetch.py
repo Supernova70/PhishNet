@@ -91,14 +91,24 @@ class TestFetchRecentRaw:
         client.get.side_effect = [
             # list: unsorted on purpose — result must come back newest-first
             _resp(200, {"messages": [{"id": "m-old"}, {"id": "m-new"}]}),
-            _resp(200, {"payload": {"raw": _b64(RAW_OLD)}, "internalDate": "1000"}),
-            _resp(200, {"payload": {"raw": _b64(RAW_NEW)}, "internalDate": "2000"}),
+            _resp(200, {"raw": _b64(RAW_OLD), "internalDate": "1000"}),
+            _resp(200, {"raw": _b64(RAW_NEW), "internalDate": "2000"}),
         ]
         out = fetch_recent_raw_messages("rt", "cid", "cs", limit=5, client=client)
         assert out == [RAW_NEW, RAW_OLD]
         # every message GET is read-only format=raw
         for call in client.get.call_args_list[1:]:
             assert call.kwargs["params"] == {"format": "raw"}
+
+    def test_nested_payload_raw_still_accepted(self):
+        client = MagicMock(spec=httpx.Client)
+        client.post.return_value = _resp(200, {"access_token": "at"})
+        client.get.side_effect = [
+            _resp(200, {"messages": [{"id": "m1"}]}),
+            _resp(200, {"payload": {"raw": _b64(RAW_NEW)}, "internalDate": "1"}),
+        ]
+        out = fetch_recent_raw_messages("rt", "cid", "cs", limit=5, client=client)
+        assert out == [RAW_NEW]
 
     def test_list_401_raises_auth_failed(self):
         client = MagicMock(spec=httpx.Client)
