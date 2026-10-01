@@ -37,7 +37,7 @@ function ProtectedLayout() {
       >
         <ShieldCheck size={34} style={{ color: '#60a5fa' }} />
         <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-          Loading PhishNet…
+          Loading Phishing-Guard 2.0…
         </span>
       </div>
     );

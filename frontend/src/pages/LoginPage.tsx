@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { ShieldCheck, Mail, Lock } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import {
   getAuthConfig,
   postCredential,
@@ -170,10 +170,11 @@ export function LoginPage() {
             <ShieldCheck size={26} style={{ color: '#60a5fa' }} />
           </div>
           <h1 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-            PhishNet
+            Phishing-Guard 2.0
           </h1>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, textAlign: 'center' }}>
-            AI-powered phishing detection for your inbox
+          <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0, textAlign: 'center', lineHeight: 1.5 }}>
+            AI-Powered Email Threat Detection, Geolocation and Forensic
+            Intelligence Platform
           </p>
         </div>
 
@@ -227,20 +228,17 @@ export function LoginPage() {
           </p>
         )}
 
-        <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <PrivacyLine icon={<Lock size={13} />} text="One consent links your Gmail read-only — analysis runs privately per account." />
-          <PrivacyLine icon={<Mail size={13} />} text="We only ever read mail to scan it. We never send, delete, or modify it." />
+        <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 16 }}>
+          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+            Private by design.
+          </div>
+          <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
+            Connect your Gmail securely for read-only phishing analysis.
+            Phishing Guard scans your emails for threats without sending,
+            deleting, or modifying your email.
+          </p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function PrivacyLine({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', color: 'var(--text-muted)' }}>
-      <span style={{ marginTop: 2, flexShrink: 0 }}>{icon}</span>
-      <span style={{ fontSize: '0.72rem', lineHeight: 1.5 }}>{text}</span>
     </div>
   );
 }

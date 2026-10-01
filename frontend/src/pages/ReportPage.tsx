@@ -110,8 +110,8 @@ export function ReportPage() {
       .slice(0, 60);
     const cls = v?.classification ? `-${v.classification}` : '';
     document.title = subject
-      ? `PhishNet-report-scan-${report.scan.id}${cls}-${subject}`
-      : `PhishNet-report-scan-${report.scan.id}${cls}`;
+      ? `Phishing-Guard-report-scan-${report.scan.id}${cls}-${subject}`
+      : `Phishing-Guard-report-scan-${report.scan.id}${cls}`;
     window.print();
     setTimeout(() => { document.title = prevTitle; }, 500);
   };
