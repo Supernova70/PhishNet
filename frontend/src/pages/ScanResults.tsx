@@ -142,7 +142,7 @@ export function ScanResults() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [scoreMin, setScoreMin] = useState(0);
   const [scoreMax, setScoreMax] = useState(100);
-  const [sortKey, setSortKey] = useState<SortKey>('score');
+  const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [error, setError] = useState<string | null>(null);
 

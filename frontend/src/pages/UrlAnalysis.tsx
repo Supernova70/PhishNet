@@ -281,7 +281,7 @@ export function UrlAnalysis() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
-  const [sortBy, setSortBy] = useState<SortKey>('score');
+  const [sortBy, setSortBy] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedUrl, setExpandedUrl] = useState<string | null>(null);
 
