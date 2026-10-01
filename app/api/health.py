@@ -9,6 +9,7 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.dependencies import engine
+from app.integrations.virustotal import VirusTotalClient
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["System"])
@@ -57,6 +58,13 @@ async def health_check():
         if vt_keys
         else "No API keys — set VIRUSTOTAL_API_KEYS in .env"
     )
+    vt_rotation = VirusTotalClient(keys=vt_keys).status() if vt_keys else None
+    if vt_rotation:
+        vt_detail = (
+            f"{vt_rotation['available']}/{vt_rotation['key_count']} key(s) ready"
+            + (f", {vt_rotation['cooling_down']} cooling down" if vt_rotation["cooling_down"] else "")
+            + (f", {vt_rotation['invalid']} invalid" if vt_rotation["invalid"] else "")
+        )
 
     response_time_ms = round((time.time() - start) * 1000)
 
@@ -76,6 +84,7 @@ async def health_check():
             "virustotal": {
                 "status": vt_status,
                 "key_count": len(vt_keys),
+                "rotation": vt_rotation,
                 "detail": vt_detail,
             },
             "dynamic_url": {

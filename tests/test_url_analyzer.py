@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from app.config import Settings
 from app.engines.dynamic.models import BrowserObservation, DynamicUrlResult
 from app.engines.url_analyzer import UrlAnalyzer
+from app.integrations.virustotal import reset_vt_state
 
 
 def settings(**overrides) -> Settings:
@@ -72,8 +73,9 @@ class TestUrlAnalyzer:
         )
         assert result.per_url_results[0].final_score > 0.0
 
-    @patch("app.engines.url_analyzer.httpx.Client")
+    @patch("app.integrations.virustotal.httpx.Client")
     def test_vt_responses(self, mock_client):
+        reset_vt_state()
         analyzer = UrlAnalyzer(settings(VIRUSTOTAL_API_KEYS="mock"))
 
         response_ok = MagicMock()
@@ -89,13 +91,15 @@ class TestUrlAnalyzer:
                 }
             }
         }
-        mock_client.return_value.__enter__.return_value.get.side_effect = [response_ok]
+        mock_client.return_value.__enter__.return_value.request.side_effect = [response_ok]
         result = analyzer.analyze("http://evil.example", "")
         assert result.per_url_results[0].vt_malicious == 5
 
+        reset_vt_state()
         response_limited = MagicMock()
         response_limited.status_code = 429
-        mock_client.return_value.__enter__.return_value.get.side_effect = [
+        response_limited.headers = {}
+        mock_client.return_value.__enter__.return_value.request.side_effect = [
             response_limited
         ]
         result = analyzer.analyze("http://busy.example", "")
@@ -174,17 +178,18 @@ class TestUrlAnalyzer:
             "skipped:duplicate_domain",
         ]
 
-    @patch("app.engines.url_analyzer.httpx.Client")
+    @patch("app.integrations.virustotal.httpx.Client")
     def test_vt_auth_failure_stops_more_requests_in_same_scan(self, mock_client):
+        reset_vt_state()
         unauthorized = MagicMock(status_code=401)
-        mock_client.return_value.__enter__.return_value.get.return_value = unauthorized
+        mock_client.return_value.__enter__.return_value.request.return_value = unauthorized
         analyzer = UrlAnalyzer(settings(VIRUSTOTAL_API_KEYS="bad-key"))
 
         result = analyzer.analyze(
             "https://one.example https://two.example.net", ""
         )
 
-        assert mock_client.return_value.__enter__.return_value.get.call_count == 1
+        assert mock_client.return_value.__enter__.return_value.request.call_count == 1
         assert result.vt_checked_urls == 1
         assert all(
             item.vt_error == "VT authentication failed — check VIRUSTOTAL_API_KEYS"

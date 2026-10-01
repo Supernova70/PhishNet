@@ -142,7 +142,7 @@ Ordered by **value/effort ratio** for a college major project.
 | # | Gap | Engine | Effort | Why it matters |
 |---|-----|--------|--------|----------------|
 | G1 | VT response caching (Redis) | URL + Attachment | Low | Frees VT quota (free tier = 4 req/min); fixes biggest production blocker |
-| G2 | Flip `ENABLE_VT_HASH_LOOKUP=True` + rotation/hardening | Attachment | Low | Code already written; just disabled for safety. Unlocks file reputation |
+| G2 | ~~Flip `ENABLE_VT_HASH_LOOKUP=True` + rotation/hardening~~ ✅ done 2026-10-01 | Attachment | Low | Multi-key rotation client (`app/integrations/virustotal.py`) + live enable. Unlocks file reputation |
 | G3 | Async scan worker (Celery + Redis) | Pipeline | Medium | Playwright + Sysmon are slow; BackgroundTask blocks the worker. Needed before G4/G5 |
 | G4 | **Dynamic URL analysis (Playwright)** | URL | Medium | Catches JS-rendered phishing forms, redirect chains, expired SSL — static heuristics miss these |
 | G5 | **Dynamic attachment analysis (Sysmon sandbox)** | Attachment | High | Signature of this project. Catches zero-day / behaviour-based malware that static + YARA miss |
@@ -185,9 +185,14 @@ Key format: `vt:{kind}:{sha256|url_hash}`. `kind ∈ {"url","file"}`.
 
 ---
 
-### 4.2 Quick Win — Enable + harden VT hash lookup for attachments
+### 4.2 Quick Win — Enable + harden VT hash lookup for attachments ✅ DONE (2026-10-01)
 
 **Goal:** Flip `ENABLE_VT_HASH_LOOKUP=True` and make the lookup safe.
+
+**Shipped:** `app/integrations/virustotal.py` rotates across all keys in
+`VIRUSTOTAL_API_KEYS` (429 → cooldown with Retry-After/escalating backoff;
+401/403 → key invalidated). Both the URL and attachment engines use it;
+`/api/health` reports pool status. Live `.env.prod` has `ENABLE_VT_HASH_LOOKUP=true`.
 
 **Files**
 - Edit `app/config.py`: default to `True`; add `VT_HASH_LOOKUP_ENABLED` tumbling and `VT_FILE_TIMEOUT_SECONDS: int = 10`.
@@ -485,6 +490,6 @@ Before merging any new engine/step, it must satisfy:
 
 1. `graphify --update` to refresh the navigation map (see §1).
 2. Re-add Redis to `docker-compose.yml` + implement `app/cache.py` (§4.1).
-3. Flip `ENABLE_VT_HASH_LOOKUP` and add key rotation (§4.2).
+3. ~~Flip `ENABLE_VT_HASH_LOOKUP` and add key rotation (§4.2)~~ ✅ done.
 4. Scaffold `app/worker.py` and move the scan off BackgroundTask behind `SCAN_MODE=async` (§4.3).
 5. Then begin Playwright (§4.4) and the Sysmon sandbox MVP in parallel (§4.5).

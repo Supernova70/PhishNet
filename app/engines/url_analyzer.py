@@ -9,12 +9,12 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 from urllib.parse import unquote, urlparse
 
-import httpx
 from bs4 import BeautifulSoup
 
 from app.config import Settings, get_settings
 from app.engines.dynamic.dynamic_url_analyzer import DynamicUrlAnalyzer
 from app.engines.dynamic.scoring import registrable_domain
+from app.integrations.virustotal import VirusTotalClient
 
 # Redis caching removed — planned for Semester 2
 
@@ -70,8 +70,10 @@ class UrlAnalyzer:
     ):
         self._settings = settings or get_settings()
         self._vt_keys = self._settings.vt_api_keys
-        self._vt_key_index = 0
         self._vt_disabled_reason: str | None = None
+        # Multi-key rotating client — cooldown state is shared process-wide
+        # with the attachment engine (see app/integrations/virustotal.py).
+        self._vt = VirusTotalClient(keys=self._vt_keys)
         self._dynamic_analyzer = dynamic_analyzer
 
     def analyze(
@@ -453,6 +455,12 @@ class UrlAnalyzer:
     # Caching will be re-added in Semester 2 with Redis.
 
     def _check_virustotal(self, result: UrlAnalysisResult) -> bool:
+        """
+        VirusTotal URL lookup with multi-key rotation.
+
+        Returns True when an HTTP attempt was made (counts toward
+        vt_checked_urls), False when the lookup was skipped.
+        """
         if self._vt_disabled_reason:
             result.vt_error = self._vt_disabled_reason
             return False
@@ -470,59 +478,50 @@ class UrlAnalyzer:
             .rstrip("=")
         )
 
-        api_key = self._vt_keys[self._vt_key_index]
-        self._vt_key_index = (self._vt_key_index + 1) % len(self._vt_keys)
-
-        headers = {"x-apikey": api_key}
-
         # Log that we are actually calling VT
         logger.info(f"VT lookup for URL: {result.normalized_url[:80]}")
 
-        try:
-            with httpx.Client(timeout=10.0) as client:
-                resp = client.get(
-                    f"https://www.virustotal.com/api/v3/urls/{url_id}", headers=headers
-                )
+        status, data, err = self._vt.get(f"/urls/{url_id}")
 
-                if resp.status_code == 200:
-                    data = resp.json()["data"]["attributes"]["last_analysis_stats"]
-                    self._apply_vt_stats(result, data)
-                    logger.info(
-                        f"VT result: malicious={result.vt_malicious} "
-                        f"suspicious={result.vt_suspicious} total={result.vt_total}"
-                    )
-                elif resp.status_code in (401, 403):
-                    self._vt_disabled_reason = (
-                        "VT authentication failed — check VIRUSTOTAL_API_KEYS"
-                    )
-                    result.vt_error = self._vt_disabled_reason
-                    logger.error(self._vt_disabled_reason)
+        if status == 200:
+            stats = (data or {}).get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
+            self._apply_vt_stats(result, stats)
+            logger.info(
+                f"VT result: malicious={result.vt_malicious} "
+                f"suspicious={result.vt_suspicious} total={result.vt_total}"
+            )
 
-                elif resp.status_code == 404:
-                    result.vt_error = "Submitted to VT — not yet analyzed"
-                    # Submit for analysis
-                    client.post(
-                        "https://www.virustotal.com/api/v3/urls",
-                        data={"url": result.normalized_url},
-                        headers=headers,
-                    )
-                elif resp.status_code == 429:
-                    result.vt_error = "VT rate limit — heuristic score only"
-                    logger.warning(
-                        f"VT rate limit hit for URL: {result.normalized_url[:60]}"
-                    )
-                else:
-                    logger.warning(
-                        f"VT Error {resp.status_code} for {result.normalized_url}"
-                    )
-                    result.vt_error = f"VT HTTP Error {resp.status_code}"
+        elif status == 401:
+            # Every configured key was rejected — stop trying this scan.
+            self._vt_disabled_reason = err or (
+                "VT authentication failed — check VIRUSTOTAL_API_KEYS"
+            )
+            result.vt_error = self._vt_disabled_reason
+            logger.error(self._vt_disabled_reason)
 
-            return True
+        elif status == 404:
+            result.vt_error = "Submitted to VT — not yet analyzed"
+            # Submit for analysis (best effort — result available later)
+            self._vt.post("/urls", data={"url": result.normalized_url})
 
-        except Exception as e:
-            logger.warning(f"VT request failed: {e}")
-            result.vt_error = "VT connection failed"
-            return True
+        elif status == 429:
+            # All keys exhausted or cooling down — rotation client says why.
+            result.vt_error = err or "VT rate limit — heuristic score only"
+            logger.warning(
+                f"VT rate limit hit for URL: {result.normalized_url[:60]}"
+            )
+
+        elif status == 0:
+            result.vt_error = err or "VT connection failed"
+            logger.warning(f"VT request failed: {result.vt_error}")
+
+        else:
+            logger.warning(
+                f"VT Error {status} for {result.normalized_url}"
+            )
+            result.vt_error = err or f"VT HTTP Error {status}"
+
+        return True
 
     def _apply_vt_stats(self, result: UrlAnalysisResult, stats: dict) -> None:
         result.vt_malicious = stats.get("malicious", 0)
