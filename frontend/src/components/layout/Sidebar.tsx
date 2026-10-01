@@ -140,7 +140,7 @@ export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online
 
   const systemItems: NavItem[] = [
     { to: '/settings', icon: <Settings size={16} />, label: 'Settings' },
-    { to: '/health', icon: <Activity size={16} />, label: 'API Health', badgeType: 'dot', dotStatus: apiStatus },
+    { to: '/system-health', icon: <Activity size={16} />, label: 'API Health', badgeType: 'dot', dotStatus: apiStatus },
   ];
 
   // Derive component statuses from health hook

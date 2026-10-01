@@ -35,7 +35,7 @@ export default function App() {
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="url-analysis" element={<UrlAnalysis />} />
           <Route path="attachments" element={<AttachmentsPage />} />
-          <Route path="health" element={<HealthPage />} />
+          <Route path="system-health" element={<HealthPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

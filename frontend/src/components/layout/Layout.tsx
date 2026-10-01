@@ -18,7 +18,7 @@ const PAGE_CONFIG: Record<string, { title: string; breadcrumbs: Array<{ label: s
   '/graph': { title: 'Attribution Graph', breadcrumbs: [{ label: 'Analyze' }, { label: 'Attribution Graph' }] },
   '/campaigns': { title: 'Campaigns', breadcrumbs: [{ label: 'Analyze' }, { label: 'Campaigns' }] },
   '/alerts': { title: 'Alerts', breadcrumbs: [{ label: 'Monitor' }, { label: 'Alerts' }] },
-  '/health': { title: 'API Health', breadcrumbs: [{ label: 'System' }, { label: 'API Health' }] },
+  '/system-health': { title: 'API Health', breadcrumbs: [{ label: 'System' }, { label: 'API Health' }] },
   '/settings': { title: 'Settings', breadcrumbs: [{ label: 'System' }, { label: 'Settings' }] },
 };
 

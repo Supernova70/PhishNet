@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Activity, Database, Server, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, Globe2 } from 'lucide-react';
+import { Activity, Database, Server, RefreshCw, CheckCircle, AlertTriangle, AlertCircle, Globe2, Shield } from 'lucide-react';
 import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { useSystemHealth } from '../hooks/useSystemHealth';
 
@@ -112,6 +112,8 @@ export function HealthPage() {
   const dbStatus = health?.components?.database?.status;
   const mlStatus = health?.components?.ml_model?.status;
   const dynamicStatus = health?.components?.dynamic_url?.status;
+  const vtComponent = health?.components?.virustotal;
+  const vtRot = vtComponent?.rotation;
 
   // Determine failing components for degraded banner
   const failingComponents: string[] = [];
@@ -177,7 +179,7 @@ export function HealthPage() {
       </motion.div>
 
       {/* Service cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
         <ServiceCard
           name="API"
           icon={<Server size={16} />}
@@ -216,6 +218,29 @@ export function HealthPage() {
           variant={
             !health ? 'unknown' :
             mlStatus === 'loaded' ? 'healthy' : 'warning'
+          }
+        />
+        <ServiceCard
+          name="VirusTotal"
+          icon={<Shield size={16} />}
+          status={
+            !health ? 'UNKNOWN' :
+            !vtRot ? (vtComponent?.status === 'configured' ? 'CONFIGURED' : 'NOT SET') :
+            vtRot.invalid >= vtRot.key_count && vtRot.key_count > 0 ? 'KEYS DEAD' :
+            vtRot.available === 0 ? 'COOLDOWN' :
+            vtRot.cooling_down > 0 ? 'ROTATING' : 'ACTIVE'
+          }
+          detail={
+            vtRot
+              ? `${vtRot.available}/${vtRot.key_count} keys ready · ${vtRot.cooling_down} cooling · ${vtRot.invalid} invalid · ${vtRot.total_calls} calls`
+              : vtComponent?.detail ?? 'No data'
+          }
+          variant={
+            !health ? 'unknown' :
+            !vtRot ? (vtComponent?.status === 'configured' ? 'healthy' : 'warning') :
+            vtRot.invalid >= vtRot.key_count && vtRot.key_count > 0 ? 'error' :
+            vtRot.available === 0 ? 'warning' :
+            'healthy'
           }
         />
       </div>

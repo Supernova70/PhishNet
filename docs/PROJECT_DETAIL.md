@@ -493,7 +493,7 @@ Invoke-RestMethod http://127.0.0.1:8080/scans/$scanId
 | `/scans` | Scan results | Classification/status/score filters |
 | `/scans/:id` | Scan detail | Verdict and engine evidence, URL/attachment breakdown |
 | `/url-analysis` | URL analysis | Aggregate URLs, risk filters, sorting and evidence expansion |
-| `/health` | Health | Backend component state and latency history |
+| `/system-health` | Health | Component status incl. VirusTotal key-pool rotation (`/health` is proxied to backend JSON for LB probes) |
 | `/attachments` | Placeholder | Not implemented |
 | `/settings` | Placeholder | Not implemented |
 
