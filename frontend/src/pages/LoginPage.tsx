@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
-import { Shield, Lock, Mail } from 'lucide-react';
+import { Shield, Lock, Mail, ScanLine } from 'lucide-react';
 import {
   getAuthConfig,
   postCredential,
@@ -237,12 +237,37 @@ export function LoginPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <Mail size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0, textAlign: 'justify' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6, textAlign: 'justify' }}>
               Connect your Gmail securely for read-only phishing analysis.
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+            <ScanLine size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6, textAlign: 'justify' }}>
               Phishing Guard scans your emails for threats without sending,
               deleting, or modifying your email.
-            </p>
+            </span>
           </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 14, fontSize: '0.68rem' }}>
+          <a
+            href="/privacy-policy.html"
+            target="_blank"
+            rel="noopener"
+            style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}
+          >
+            Privacy Policy
+          </a>
+          <span style={{ color: 'var(--border-default)' }}>·</span>
+          <a
+            href="/terms-of-service.html"
+            target="_blank"
+            rel="noopener"
+            style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}
+          >
+            Terms of Service
+          </a>
         </div>
       </div>
     </div>
