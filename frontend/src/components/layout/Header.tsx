@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 
-import { RefreshCw, AlertTriangle, Clock } from 'lucide-react';
+import { RefreshCw, AlertTriangle, Clock, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
 import { fetchEmails } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
 import { AlertBell } from './AlertBell';
 
 interface HeaderProps {
@@ -24,6 +25,8 @@ export function Header({
 }: HeaderProps) {
   const [time, setTime] = useState(() => format(new Date(), 'HH:mm:ss'));
   const [fetching, setFetching] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const id = setInterval(() => setTime(format(new Date(), 'HH:mm:ss')), 1000);
@@ -140,6 +143,126 @@ export function Header({
           <Clock size={13} />
           <span className="font-mono" style={{ fontSize: '0.8rem' }}>{time}</span>
         </div>
+
+        {/* Account avatar + menu */}
+        {user && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              aria-label="Account menu"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                background: menuOpen ? 'var(--bg-hover, rgba(255,255,255,0.06))' : 'transparent',
+                border: '1px solid var(--border-default)',
+                borderRadius: 20,
+                padding: '3px 10px 3px 3px',
+                cursor: 'pointer',
+              }}
+            >
+              {user.picture ? (
+                <img
+                  src={user.picture}
+                  alt=""
+                  width={22}
+                  height={22}
+                  style={{ borderRadius: '50%', display: 'block' }}
+                />
+              ) : (
+                <span
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: '50%',
+                    background: 'rgba(59,130,246,0.25)',
+                    color: '#93c5fd',
+                    fontSize: '0.68rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {(user.name || user.email).slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-primary)', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.name || user.email.split('@')[0]}
+              </span>
+            </button>
+
+            {menuOpen && (
+              <>
+                <div
+                  onClick={() => setMenuOpen(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 30 }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 'calc(100% + 8px)',
+                    width: 240,
+                    background: 'var(--bg-card, #111827)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 10,
+                    boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+                    padding: 12,
+                    zIndex: 31,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
+                >
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-all' }}>
+                    {user.name || user.email}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', wordBreak: 'break-all' }}>
+                    {user.email}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{
+                      fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                      padding: '2px 7px', borderRadius: 5,
+                      background: user.role === 'admin' ? 'rgba(168,85,247,0.15)' : 'rgba(59,130,246,0.12)',
+                      color: user.role === 'admin' ? '#d8b4fe' : '#93c5fd',
+                      border: `1px solid ${user.role === 'admin' ? 'rgba(168,85,247,0.4)' : 'rgba(59,130,246,0.35)'}`,
+                    }}>
+                      {user.role}
+                    </span>
+                    <span style={{
+                      fontSize: '0.66rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+                      padding: '2px 7px', borderRadius: 5,
+                      background: user.gmail_connected ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
+                      color: user.gmail_connected ? '#6ee7b7' : '#fcd34d',
+                      border: `1px solid ${user.gmail_connected ? 'rgba(16,185,129,0.35)' : 'rgba(245,158,11,0.35)'}`,
+                    }}>
+                      {user.gmail_connected ? 'gmail linked' : 'gmail pending'}
+                    </span>
+                  </div>
+                  <div style={{ borderTop: '1px solid var(--border-default)', paddingTop: 8 }}>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void logout();
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                        background: 'transparent', border: 'none', borderRadius: 6,
+                        padding: '7px 8px', cursor: 'pointer', color: '#fca5a5',
+                        fontSize: '0.78rem', fontWeight: 600,
+                      }}
+                    >
+                      <LogOut size={14} />
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

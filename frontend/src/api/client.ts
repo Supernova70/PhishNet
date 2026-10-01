@@ -42,6 +42,14 @@ apiClient.interceptors.response.use(
     if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
       return Promise.reject(new Error('BACKEND_OFFLINE'));
     }
+    // 401 on any protected endpoint → back to the login page.
+    // /auth/* 401s are handled by AuthContext / LoginPage themselves.
+    if (error.response?.status === 401) {
+      const url = String(error.config?.url ?? '');
+      if (!url.includes('/auth/') && window.location.pathname !== '/login') {
+        window.location.assign('/login');
+      }
+    }
     return Promise.reject(error);
   }
 );
