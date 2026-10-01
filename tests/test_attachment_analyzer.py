@@ -288,3 +288,148 @@ class TestAttachmentAnalyzer:
         finally:
             _cleanup(path1)
             _cleanup(path2)
+
+
+# ─── False-positive tuning regression (real incident: provost email) ──────────
+
+class TestFalsePositiveTuning:
+    """Email 85: benign PNG attachment scored 85 (CRITICAL YARA) because a
+    4-byte '-eC ' sequence inside compressed image data matched the old
+    single-flag PowerShell rule. These pin the fix."""
+
+    def test_png_with_coincidental_ps_flag_scores_low(self):
+        data = (
+            b"\x89PNG\r\n\x1a\n"
+            + b"junk" * 500
+            + b"-eC "
+            + b"data" * 500
+        )
+        att, path = _make_attachment("001.png", data, "image/png")
+        try:
+            analyzer = AttachmentAnalyzer()
+            result = analyzer.analyze([att])
+            assert result.analyzed_files == 1
+            per_file = result.per_file_results[0]
+            assert per_file["yara_matches"] == [], "PNG must not match PS rules"
+            assert result.attachment_score < 60.0
+        finally:
+            _cleanup(path)
+
+    def test_score_breakdown_is_explainable(self):
+        """Every analyzed file carries a score_breakdown the UI renders."""
+        att, path = _make_attachment("invoice.pdf.exe", b"hello", "application/octet-stream")
+        try:
+            analyzer = AttachmentAnalyzer()
+            result = analyzer.analyze([att])
+            per_file = result.per_file_results[0]
+            breakdown = per_file["score_breakdown"]
+            assert breakdown, "score_breakdown must not be empty"
+            for entry in breakdown:
+                assert "signal" in entry and "points" in entry
+            assert any("Double extension" in e["signal"] for e in breakdown)
+        finally:
+            _cleanup(path)
+
+    def test_media_metadata_urls_not_scored(self):
+        """URLs embedded in image metadata (SVG ns, C2PA, OCSP) are info-only."""
+        data = (
+            b"\x89PNG\r\n\x1a\n"
+            + b"http://www.w3.org/2000/svg " * 4
+            + b"http://ocsp.c2pa.example " * 4
+            + b"x" * 200
+        )
+        att, path = _make_attachment("img.png", data, "image/png")
+        try:
+            analyzer = AttachmentAnalyzer()
+            result = analyzer.analyze([att])
+            per_file = result.per_file_results[0]
+            assert per_file["risk_score"] < 30.0
+            assert any("metadata" in f for f in per_file["findings"])
+        finally:
+            _cleanup(path)
+
+
+# ─── VirusTotal multi-key rotation integration ───────────────────────────────
+
+class TestVtHashLookup:
+    def _analyzer_with_vt(self, keys=("vt-key-1",)):
+        from app.config import Settings
+        from app.integrations.virustotal import VirusTotalClient
+
+        analyzer = AttachmentAnalyzer()
+        analyzer._settings = Settings(
+            _env_file=None,
+            ENABLE_VT_HASH_LOOKUP=True,
+            VIRUSTOTAL_API_KEYS=",".join(keys),
+        )
+        analyzer._vt = VirusTotalClient(keys=list(keys))
+        return analyzer
+
+    @staticmethod
+    def _vt_response(malicious=7, suspicious=1, harmless=60, undetected=40):
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {}
+        resp.json.return_value = {
+            "data": {
+                "attributes": {
+                    "last_analysis_stats": {
+                        "malicious": malicious,
+                        "suspicious": suspicious,
+                        "harmless": harmless,
+                        "undetected": undetected,
+                    }
+                }
+            }
+        }
+        return resp
+
+    @patch("app.integrations.virustotal.httpx.Client")
+    def test_vt_malicious_hash_boosts_score(self, mock_client):
+        from app.integrations.virustotal import reset_vt_state
+        reset_vt_state()
+        mock_client.return_value.__enter__.return_value.request.return_value = (
+            self._vt_response()
+        )
+
+        data = b"clean looking attachment body\n" * 5
+        att, path = _make_attachment("doc.txt", data, "text/plain")
+        att.sha256_hash = "a" * 64
+        try:
+            analyzer = self._analyzer_with_vt()
+            result = analyzer.analyze([att])
+            per_file = result.per_file_results[0]
+            assert per_file["vt_malicious"] == 7
+            assert per_file["vt_total"] == 108
+            assert per_file["risk_score"] >= 6.0  # VT ratio applied
+            assert any("VirusTotal" in f for f in per_file["findings"])
+            assert any(
+                "VirusTotal" in e["signal"] for e in per_file["score_breakdown"]
+            )
+        finally:
+            _cleanup(path)
+            from app.integrations.virustotal import reset_vt_state
+            reset_vt_state()
+
+    @patch("app.integrations.virustotal.httpx.Client")
+    def test_vt_429_falls_back_gracefully(self, mock_client):
+        from app.integrations.virustotal import reset_vt_state
+        reset_vt_state()
+        limited = MagicMock()
+        limited.status_code = 429
+        limited.headers = {}
+        mock_client.return_value.__enter__.return_value.request.return_value = limited
+
+        data = b"attachment content\n" * 5
+        att, path = _make_attachment("a.txt", data, "text/plain")
+        att.sha256_hash = "b" * 64
+        try:
+            analyzer = self._analyzer_with_vt(keys=("k1", "k2"))
+            result = analyzer.analyze([att])
+            per_file = result.per_file_results[0]
+            assert per_file["vt_total"] == 0
+            assert "rate limit" in per_file["vt_error"]
+        finally:
+            _cleanup(path)
+            from app.integrations.virustotal import reset_vt_state
+            reset_vt_state()

@@ -17,6 +17,8 @@ class FileAnalysisResult:
         findings       : Human-readable descriptions of each detected indicator
         indicators     : Machine-readable key-value map of raw findings
         mime_mismatch  : True when the actual MIME differs from the declared content_type
+        score_breakdown: Explainable score contributions
+                         [{"signal": str, "points": float, "detail": str}]
         vt_malicious   : VirusTotal malicious engine count (0 if not checked)
         vt_suspicious  : VirusTotal suspicious engine count
         vt_harmless    : VirusTotal harmless engine count
@@ -29,6 +31,7 @@ class FileAnalysisResult:
     findings: List[str] = field(default_factory=list)
     indicators: Dict[str, Any] = field(default_factory=dict)
     mime_mismatch: bool = False
+    score_breakdown: List[Dict[str, Any]] = field(default_factory=list)
     # VirusTotal hash lookup results (populated by AttachmentAnalyzer)
     vt_malicious: int = 0
     vt_suspicious: int = 0

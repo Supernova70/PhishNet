@@ -44,10 +44,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 
+from app.engines.analyzers.file_types import parse_applies_to
+
 logger = logging.getLogger(__name__)
 
 # Rules directory — relative to this file's location
 _RULES_DIR = Path(__file__).parent.parent / "rules"
+
+
+def _preview(raw: bytes, limit: int = 64) -> str:
+    """Printable ASCII preview of matched bytes (binary → '.')."""
+    shown = raw[:limit]
+    text = "".join(chr(b) if 32 <= b < 127 else "." for b in shown)
+    suffix = "…" if len(raw) > limit else ""
+    return text + suffix
 
 # Severity order for score mapping
 _SEVERITY_SCORES: Dict[str, float] = {
@@ -66,6 +76,8 @@ class YaraMatch:
     tags: List[str]
     meta: Dict[str, Any]
     matched_strings: List[str]   # Human-readable list of which strings matched
+    evidence: List[Dict[str, Any]] = field(default_factory=list)
+    #   [{"string": "$enc4", "offset": 988475, "preview": "-eC ", "count": 1}]
 
     @property
     def severity(self) -> str:
@@ -74,6 +86,16 @@ class YaraMatch:
     @property
     def description(self) -> str:
         return str(self.meta.get("description", self.rule_name))
+
+    @property
+    def explanation(self) -> str:
+        """Why the rule exists (rule author's meta.explanation)."""
+        return str(self.meta.get("explanation", ""))
+
+    @property
+    def applies_to(self) -> str:
+        """Raw applies_to meta (comma-separated buckets), '' = any file."""
+        return str(self.meta.get("applies_to", ""))
 
     @property
     def score_contribution(self) -> float:
@@ -88,6 +110,9 @@ class YaraScanResult:
     matches: List[YaraMatch] = field(default_factory=list)
     yara_score: float = 0.0         # 0–100 aggregate score
     error: Optional[str] = None     # Error message if scan failed
+    suppressed: List[str] = field(default_factory=list)
+    #   Human-readable notes for rules that matched raw bytes but were
+    #   dropped because the rule does not apply to this file type.
 
     @property
     def findings(self) -> List[str]:
@@ -116,13 +141,22 @@ class YaraScanner:
 
     # ── Public API ─────────────────────────────────────────────────────────────
 
-    def scan(self, data: bytes, filename: str = "unknown") -> YaraScanResult:
+    def scan(
+        self,
+        data: bytes,
+        filename: str = "unknown",
+        bucket: Optional[str] = None,
+    ) -> YaraScanResult:
         """
         Run all loaded YARA rules against raw file bytes.
 
         Args:
             data    : Raw bytes of the file to scan
             filename: Original filename (for logging only)
+            bucket  : File-type bucket from file_types.classify_bucket().
+                      Rules whose meta.applies_to does not include this
+                      bucket are suppressed (not counted, not scored).
+                      None = apply every rule (email bodies, unknown files).
 
         Returns:
             YaraScanResult with all matched rules and aggregate score
@@ -142,38 +176,68 @@ class YaraScanner:
             raw_matches = YaraScanner._compiled_rules.match(data=data)
         except Exception as e:
             result.error = f"YARA scan error: {e}"
-            logger.error(f"YARA scan failed on '{filename}': {e}")
+            logger.debug(f"YARA scan failed on '{filename}': {e}")
             return result
 
         if not raw_matches:
             return result
 
-        result.matched = True
         total_score = 0.0
 
         for match in raw_matches:
-            # Build list of matched string identifiers
+            applies_raw = str(match.meta.get("applies_to", "")).strip()
+            if bucket and applies_raw:
+                allowed = parse_applies_to(applies_raw)
+                if bucket not in allowed:
+                    note = (
+                        f"YARA rule '{match.rule}' matched raw bytes but was "
+                        f"suppressed: it applies to [{applies_raw}] files, not "
+                        f"'{bucket}' (likely byte coincidence)"
+                    )
+                    result.suppressed.append(note)
+                    logger.info(f"YARA suppression for '{filename}': {note}")
+                    continue
+
+            # Build list of matched string identifiers + hard evidence
             matched_str_names = list({
                 str(s.identifier) for s in match.strings if s.instances
             })
+            evidence: List[Dict[str, Any]] = []
+            for s in match.strings:
+                if not s.instances:
+                    continue
+                inst = s.instances[0]
+                evidence.append({
+                    "string": str(s.identifier),
+                    "offset": int(inst.offset),
+                    "preview": _preview(inst.matched_data),
+                    "count": len(s.instances),
+                })
 
             yara_match = YaraMatch(
                 rule_name=match.rule,
                 tags=list(match.tags),
                 meta=dict(match.meta),
                 matched_strings=matched_str_names,
+                evidence=evidence,
             )
             result.matches.append(yara_match)
 
             # Accumulate score (capped at 100)
             total_score += yara_match.score_contribution
 
+        if not result.matches:
+            # Everything was suppressed — this is NOT a match.
+            return result
+
+        result.matched = True
         result.yara_score = min(100.0, round(total_score, 1))
 
         logger.info(
             f"YARA matched {len(result.matches)} rule(s) on '{filename}': "
             f"score={result.yara_score} "
             f"rules=[{', '.join(m.rule_name for m in result.matches)}]"
+            + (f" suppressed={len(result.suppressed)}" if result.suppressed else "")
         )
         return result
 

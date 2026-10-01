@@ -91,6 +91,11 @@ def analyze_generic(data: bytes, filename: str) -> FileAnalysisResult:
     result = FileAnalysisResult(file_type="Generic")
     risk_score = 0.0
     findings: List[str] = []
+    signals: List[dict] = []  # explainable score contributions for the UI
+
+    def add_signal(signal: str, points: float, detail: str) -> None:
+        signals.append({"signal": signal, "points": points, "detail": detail})
+
     indicators: dict = {
         "entropy": 0.0,
         "has_embedded_pe": False,
@@ -117,6 +122,7 @@ def analyze_generic(data: bytes, filename: str) -> FileAnalysisResult:
                     f"Very high entropy for {detected_type} file ({entropy:.2f}/8.0) — unusual"
                 )
                 risk_score += 10.0
+                add_signal("Extreme entropy", 10.0, f"{entropy:.2f}/8.0 for {detected_type}")
             # Don't flag normal elevated entropy for safe formats
         else:
             if entropy >= ENTROPY_HIGH:
@@ -124,11 +130,13 @@ def analyze_generic(data: bytes, filename: str) -> FileAnalysisResult:
                     f"Very high file entropy ({entropy:.2f}/8.0) — file appears packed or encrypted"
                 )
                 risk_score += 35.0
+                add_signal("Packed/encrypted entropy", 35.0, f"{entropy:.2f}/8.0")
             elif entropy >= ENTROPY_WARN:
                 findings.append(f"Elevated file entropy ({entropy:.2f}/8.0) — possible obfuscation")
                 risk_score += 15.0
+                add_signal("Elevated entropy", 15.0, f"{entropy:.2f}/8.0")
 
-        # ── 2. Embedded PE header ─────────────────────────────────
+        # ── 2. Embedded PE header ─────────────────────────────────────────
         # MZ header (PE magic) embedded inside a non-PE file is a classic dropper trick
         # BUT: binary formats like PNG/JPEG/ZIP can contain 'MZ' bytes in compressed data
         mz_count = data.count(b"MZ")
@@ -142,34 +150,47 @@ def analyze_generic(data: bytes, filename: str) -> FileAnalysisResult:
                     f"Embedded PE magic bytes (MZ) found {mz_count}× inside file — possible dropper"
                 )
                 risk_score += 40.0
+                add_signal("Embedded PE header", 40.0, f"MZ found {mz_count}×")
 
-        # ── 3. Double extension ───────────────────────────────────
+        # ── 3. Double extension ───────────────────────────────────────────
         if DOUBLE_EXT_PATTERN.search(filename):
             indicators["double_extension"] = True
             findings.append(
                 f"Double extension detected: '{filename}' — classic trick to disguise executables"
             )
             risk_score += 30.0
+            add_signal("Double extension", 30.0, f"'{filename}'")
 
-        # ── 4. Script shebang ─────────────────────────────────────
+        # ── 4. Script shebang ─────────────────────────────────────────────
         if data[:3] in (b"#!/", b"#! "):
             indicators["is_script"] = True
             findings.append("Script shebang (#!) detected — file may be an executable script")
             risk_score += 20.0
+            add_signal("Script shebang", 20.0, "#! at file start")
 
-        # ── 5. Embedded URLs ──────────────────────────────────────
+        # ── 5. Embedded URLs ──────────────────────────────────────────────
         urls = [u.decode("utf-8", errors="replace") for u in _URL_RE.findall(data)]
         if urls:
             indicators["embedded_urls"] = urls[:10]  # Cap to 10 for display
-            findings.append(
-                f"{len(urls)} URL(s) embedded in file content"
-                + (f" (showing first 10)" if len(urls) > 10 else "")
-            )
-            # Suspicious: many embedded URLs in a non-HTML file
-            if len(urls) > 5:
-                risk_score += 10.0
+            if is_safe_binary:
+                # Media/archive bytes routinely embed standards URLs
+                # (SVG namespaces, C2PA/EXIF provenance, OCSP/CRL certs).
+                # Report them for transparency but do NOT score them.
+                findings.append(
+                    f"{len(urls)} URL(s) embedded in file content "
+                    f"(common in {detected_type} metadata: namespaces, certificates — informational)"
+                )
+            else:
+                findings.append(
+                    f"{len(urls)} URL(s) embedded in file content"
+                    + (f" (showing first 10)" if len(urls) > 10 else "")
+                )
+                # Suspicious: many embedded URLs in a non-HTML file
+                if len(urls) > 5:
+                    risk_score += 10.0
+                    add_signal("Many embedded URLs", 10.0, f"{len(urls)} URLs in non-media file")
 
-        # ── 6. Embedded IPs ───────────────────────────────────────
+        # ── 6. Embedded IPs ───────────────────────────────────────────────
         ips = list({ip.decode("utf-8", errors="replace") for ip in _IP_RE.findall(data)})
         if ips:
             indicators["embedded_ips"] = ips[:10]
@@ -182,4 +203,5 @@ def analyze_generic(data: bytes, filename: str) -> FileAnalysisResult:
     result.risk_score = min(100.0, round(risk_score, 1))
     result.findings = findings
     result.indicators = indicators
+    indicators["signals"] = signals
     return result

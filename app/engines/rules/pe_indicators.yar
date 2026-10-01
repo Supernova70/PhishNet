@@ -26,6 +26,7 @@ rule PEPackerUPX : packer pe
         description = "Detects UPX packer signatures in PE files — common in malware distribution"
         author      = "Phishing Guard"
         severity    = "high"
+        applies_to  = "executable,other"
         reference   = "UPX packer: https://upx.github.io/"
 
     strings:
@@ -52,6 +53,7 @@ rule PEMPRESSPacker : packer pe
         description = "Detects MPRESS packer — another common PE packer used to evade AV"
         author      = "Phishing Guard"
         severity    = "high"
+        applies_to  = "executable,other"
 
     strings:
         $mpress = ".MPRESS1" ascii
@@ -68,6 +70,7 @@ rule PESuspiciousAPIImports : pe malware
         description = "Detects PE files importing process injection / code execution APIs"
         author      = "Phishing Guard"
         severity    = "high"
+        applies_to  = "executable,other"
         explanation = "These APIs are legitimate but heavily abused by malware for injection"
 
     strings:
@@ -105,6 +108,7 @@ rule PEAntiDebugTricks : pe evasion
         description = "Detects common anti-debugging patterns used by malware to evade analysis"
         author      = "Phishing Guard"
         severity    = "medium"
+        applies_to  = "executable,other"
 
     strings:
         // IsDebuggerPresent: checks if running inside a debugger
@@ -134,6 +138,7 @@ rule PESuspiciousOverlay : pe dropper
         description = "PE file with appended data after EOF — common in dropper/bundler malware"
         author      = "Phishing Guard"
         severity    = "medium"
+        applies_to  = "executable,other"
         explanation = "Malware often appends an encrypted payload after the PE EOF marker"
 
     strings:

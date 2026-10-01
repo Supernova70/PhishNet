@@ -30,6 +30,7 @@ rule OfficeMacroPresent : office macro
         description = "Detects presence of VBA macro code in Office documents"
         author      = "Phishing Guard"
         severity    = "medium"
+        applies_to  = "office"
         explanation = "All macro-enabled documents should be inspected. Not all macros are malicious."
 
     strings:
@@ -52,6 +53,7 @@ rule OfficeMacroAutoRun : office macro autorun
         description = "Detects auto-executing VBA macros — run automatically when document opens"
         author      = "Phishing Guard"
         severity    = "high"
+        applies_to  = "office"
         explanation = "Auto-run macros execute without user clicking. High risk indicator."
 
     strings:
@@ -77,6 +79,7 @@ rule OfficeMacroShellExecution : office macro shell rce
         description = "Detects VBA macros that launch shell commands or external processes"
         author      = "Phishing Guard"
         severity    = "critical"
+        applies_to  = "office"
         explanation = "Shell execution from macros is the primary delivery method for malware droppers"
 
     strings:
@@ -111,6 +114,7 @@ rule OfficeMacroNetworkAccess : office macro network downloader
         description = "Detects VBA macros making network requests — classic dropper behavior"
         author      = "Phishing Guard"
         severity    = "high"
+        applies_to  = "office"
 
     strings:
         // XMLHTTP — the most popular way to download files from VBA
@@ -141,6 +145,7 @@ rule OfficeMacroDDEExecution : office dde
         description = "Detects DDE (Dynamic Data Exchange) command injection in Office documents"
         author      = "Phishing Guard"
         severity    = "critical"
+        applies_to  = "office"
         reference   = "CVE-2017-11826, Follina-related DDE techniques"
         explanation = "DDE allows executing OS commands via formula-like syntax — no macro needed"
 
@@ -167,6 +172,7 @@ rule OfficeMacroEnvVarRecon : office macro reconnaissance
         description = "Detects macros reading environment variables for system reconnaissance"
         author      = "Phishing Guard"
         severity    = "medium"
+        applies_to  = "office"
         explanation = "Malware reads env vars to fingerprint the victim machine before deploying payload"
 
     strings:
