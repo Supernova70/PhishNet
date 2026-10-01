@@ -19,6 +19,7 @@ class Base(DeclarativeBase):
 
 
 # Import all models — ORDER MATTERS for FK resolution
+from app.models.user import User  # noqa: F401, E402
 from app.models.email import Email, Attachment  # noqa: F401, E402
 from app.models.scan import Scan, Verdict  # noqa: F401, E402
 from app.models.fetch_state import FetchState  # noqa: F401, E402

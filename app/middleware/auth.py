@@ -6,7 +6,10 @@ from app.config import get_settings
 
 class ApiKeyMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ("/health", "/docs", "/openapi.json"):
+        path = request.url.path
+        # Public paths: health probe, docs, and the login flow (browser
+        # has no X-API-Key; it authenticates via session cookies instead).
+        if path in ("/health", "/docs", "/openapi.json") or path.startswith("/auth/"):
             return await call_next(request)
         
         settings = get_settings()

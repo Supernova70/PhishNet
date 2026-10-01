@@ -36,6 +36,31 @@ class Settings(BaseSettings):
     # ── Security ─────────────────────────────────────────
     API_KEYS: str = ""   # comma-separated list of valid keys
 
+    # ── Google sign-in (Sign in with Google + Gmail consent) ──
+    # Created once in Google Cloud Console (see docs/MULTI_TENANT_PLAN.md P0).
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    # Must exactly match an Authorized redirect URI in the OAuth client.
+    GOOGLE_REDIRECT_URI: str = "http://localhost:5173/api/auth/callback"
+    GOOGLE_SCOPES: str = (
+        "openid email profile https://www.googleapis.com/auth/gmail.readonly"
+    )
+    # Our own session cookie (HS256). Override with a long random value in prod.
+    SESSION_SECRET: str = "phishnet-dev-session-secret-change-me"
+    SESSION_TTL_HOURS: int = 168  # 7 days
+    SESSION_COOKIE_SECURE: bool = False  # True behind HTTPS in production
+    # Fernet key for stored OAuth refresh tokens / email bodies at rest:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Empty → ephemeral per-process key (stored secrets unreadable after restart).
+    TOKEN_ENCRYPTION_KEY: str = ""
+    # Comma-separated Google emails granted role=admin (platform operator).
+    ADMIN_EMAILS: str = ""
+
+    @property
+    def admin_emails(self) -> List[str]:
+        """Lower-cased admin email list."""
+        return [e.strip().lower() for e in self.ADMIN_EMAILS.split(",") if e.strip()]
+
     # ── Email (IMAP) ─────────────────────────────────────
     EMAIL_HOST: str = "imap.gmail.com"
     EMAIL_PORT: int = 993

@@ -4,11 +4,14 @@ Phishing Guard V2 — Dependency Injection
 Provides database sessions and service instances via FastAPI's Depends().
 """
 
+from fastapi import Depends, HTTPException, Request
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from typing import Generator
 
+from app.auth.session import COOKIE_NAME, SessionError, decode_session_token
 from app.config import get_settings
+from app.models.user import User
 
 settings = get_settings()
 
@@ -36,3 +39,18 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
+
+def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
+    """Resolve the signed-in user from the session cookie → 401 otherwise."""
+    token = request.cookies.get(COOKIE_NAME)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = decode_session_token(token)
+    except SessionError:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    user = db.get(User, payload.get("uid"))
+    if user is None:
+        raise HTTPException(status_code=401, detail="Unknown user")
+    return user

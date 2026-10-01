@@ -33,6 +33,9 @@ dependencies = [
     "PyPDF2>=3.0.0",           # PDF object tree analysis
     "python-magic>=0.4.27",   # MIME type detection (Linux/Docker — requires libmagic1)
     "yara-python>=4.5.0",     # YARA pattern matching (requires libyara-dev)
+    # ── Multi-tenant auth (Phase P1) ────────────────────────
+    "pyjwt[crypto]>=2.8.0",   # session cookies + Google ID-token verification (JWKS)
+    "cryptography>=42.0.0",   # Fernet: encrypt stored OAuth refresh tokens / email bodies
 ]
 
 [project.optional-dependencies]
