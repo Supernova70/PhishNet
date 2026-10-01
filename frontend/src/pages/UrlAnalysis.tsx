@@ -91,6 +91,9 @@ function UrlRow({ entry, expanded, onExpand }: {
   } else if (entry.vt_error && entry.vt_error.includes('rate limit')) {
     vtText = 'Rate limited';
     vtColor = '#F59E0B';
+  } else if (entry.vt_error && entry.vt_error.includes('not yet analyzed')) {
+    vtText = 'Not yet analyzed';
+    vtColor = 'var(--text-muted)';
   } else if (entry.vt_error) {
     vtText = 'VT error';
     vtColor = '#EF4444';
@@ -233,10 +236,19 @@ function UrlRow({ entry, expanded, onExpand }: {
                 of email #{entry.email_id}
               </p>
 
-              {/* VT error detail */}
+              {/* VT status detail — neutral for benign states */}
               {entry.vt_error && (
-                <div style={{ color: '#FCD34D', fontSize: '12px', marginTop: '4px' }}>
-                  ⚠ VT: {entry.vt_error}
+                <div
+                  style={{
+                    color: entry.vt_error.includes('not yet analyzed')
+                      ? 'var(--text-muted)'
+                      : '#FCD34D',
+                    fontSize: '12px',
+                    marginTop: '4px',
+                  }}
+                >
+                  {entry.vt_error.includes('not yet analyzed') ? 'ℹ' : '⚠'} VT:{' '}
+                  {entry.vt_error}
                 </div>
               )}
 
