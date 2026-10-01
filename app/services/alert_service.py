@@ -49,12 +49,14 @@ def build_alert(
     subject: Optional[str],
     sender: Optional[str],
     now: Optional[datetime] = None,
+    user_id: Optional[int] = None,
 ) -> Optional[Alert]:
     """Return an Alert row when a trigger fired, else None."""
     reasons = alert_reasons(score, breakdown)
     if not reasons:
         return None
     return Alert(
+        user_id=user_id,
         scan_id=scan_id,
         email_id=email_id,
         score=score,

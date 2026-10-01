@@ -10,8 +10,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db, owned_or_404
 from app.models.email import Attachment, Email
+from app.models.user import User
 from app.models.scan import Scan, ScanStatus, Verdict
 
 logger = logging.getLogger(__name__)
@@ -60,9 +61,14 @@ async def list_attachments(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    """List all attachments with their latest scan results."""
-    query = db.query(Attachment)
+    """List the signed-in account's attachments with latest scan results."""
+    query = (
+        db.query(Attachment)
+        .join(Email, Email.id == Attachment.email_id)
+        .filter(Email.user_id == user.id)
+    )
 
     if email_id is not None:
         query = query.filter(Attachment.email_id == email_id)
@@ -99,13 +105,17 @@ async def list_attachments(
 
 
 @router.get("/{attachment_id}", response_model=AttachmentDetail)
-async def get_attachment(attachment_id: int, db: Session = Depends(get_db)):
-    """Get full attachment details with all scan analysis results."""
+async def get_attachment(
+    attachment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get full attachment details with all scan analysis results (own only)."""
     att = db.query(Attachment).filter(Attachment.id == attachment_id).first()
-    if not att:
+    if att is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
-
     email_obj = att.email
+    owned_or_404(email_obj, user)
 
     # Get all scans for this email with verdicts
     scans = (

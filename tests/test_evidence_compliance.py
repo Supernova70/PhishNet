@@ -17,6 +17,7 @@ from app.api.intel import router as intel_router
 from app.api.report import router as report_router
 from app.api.report import _canonical_sha256
 from app.dependencies import get_db
+from tests.conftest import TEST_USER_ID, ensure_test_user, override_auth
 from app.models import Base
 from app.models.audit_log import AuditLog
 from app.models.email import Email
@@ -43,6 +44,7 @@ def env(tmp_path):
     app.include_router(evidence_router)
     app.include_router(intel_router)
     app.dependency_overrides[get_db] = lambda: session
+    override_auth(app, ensure_test_user(session))
     yield {"app": app, "client": TestClient(app), "db": session, "tmp": tmp_path}
     session.close()
 
@@ -51,6 +53,7 @@ def seed(env):
     """Email + retained raw file + hop + completed scan + verdict."""
     db = env["db"]
     email = Email(
+        user_id=TEST_USER_ID,
         message_id="<comp1>",
         sender="IT <helpdesk@paypa1-secure.com>",
         to_address="alice@example.com",
@@ -87,7 +90,7 @@ def seed(env):
         by_host="mx", timestamp_utc=datetime(2026, 1, 2, 9, 1),
         is_internal=False, parse_confidence=1.0,
     ))
-    scan = Scan(email_id=email.id, status="complete",
+    scan = Scan(user_id=TEST_USER_ID, email_id=email.id, status="complete",
                 completed_at=datetime(2026, 1, 2, 9, 5))
     db.add(scan)
     db.flush()
@@ -252,7 +255,8 @@ class TestRawEvidenceAccess:
     def test_evidence_list_and_verify_endpoints(self, env):
         email, scan = seed(env)
         append_evidence(env["db"], email_id=email.id, scan_id=scan.id,
-                        raw_sha256="dd" * 32, actor="scanner")
+                        raw_sha256="dd" * 32, actor="scanner",
+                        user_id=TEST_USER_ID)
         env["db"].commit()
 
         listing = env["client"].get(f"/evidence?scan_id={scan.id}").json()

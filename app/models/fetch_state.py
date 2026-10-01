@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Integer, DateTime
+from sqlalchemy import String, Integer, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -20,9 +20,15 @@ class FetchState(Base):
     """
 
     __tablename__ = "fetch_state"
+    __table_args__ = (
+        UniqueConstraint("user_id", "mailbox", name="uq_fetch_state_user_mailbox"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    mailbox: Mapped[str] = mapped_column(String(256), default="INBOX", unique=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
+    mailbox: Mapped[str] = mapped_column(String(256), default="INBOX")
     last_uid: Mapped[int] = mapped_column(Integer, default=0)
     last_fetched_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True

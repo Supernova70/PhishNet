@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.scan import router as scan_router
 from app.dependencies import get_db
+from tests.conftest import TEST_USER_ID, ensure_test_user, override_auth
 from app.models import Base
 from app.models.email import Email
 from app.models.indicator import Indicator
@@ -32,6 +33,7 @@ def env(tmp_path):
         return session
 
     app.dependency_overrides[get_db] = override_get_db
+    override_auth(app, ensure_test_user(session))
 
     yield {"client": TestClient(app), "db": session}
     session.close()
@@ -39,6 +41,7 @@ def env(tmp_path):
 
 def seed(db, *, breakdown=None, indicators=()):
     email = Email(
+        user_id=TEST_USER_ID,
         message_id="<b1@example.com>",
         sender="Ops <ops@corp.test>",
         subject="Invoice",
@@ -48,6 +51,7 @@ def seed(db, *, breakdown=None, indicators=()):
     db.add(email)
     db.flush()
     scan = Scan(
+        user_id=TEST_USER_ID,
         email_id=email.id, status="complete",
         completed_at=datetime(2026, 1, 1, 12, 5),
     )
@@ -109,12 +113,13 @@ class TestAttributionEndpoint:
 
     def test_scan_without_verdict_404(self, env):
         email = Email(
+            user_id=TEST_USER_ID,
             message_id="<nov@x>", sender="a@b.test", subject="s",
             body_text="x", fetched_at=datetime(2026, 1, 1),
         )
         env["db"].add(email)
         env["db"].flush()
-        scan = Scan(email_id=email.id, status="running")
+        scan = Scan(user_id=TEST_USER_ID, email_id=email.id, status="running")
         env["db"].add(scan)
         env["db"].commit()
         assert (

@@ -19,6 +19,9 @@ class Alert(Base):
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )
     scan_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("scans.id"), unique=True, index=True
     )

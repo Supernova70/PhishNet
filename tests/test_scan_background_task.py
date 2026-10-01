@@ -38,8 +38,12 @@ def test_background_scan_marks_error_when_task_raises(mock_session_local, mock_s
 
 
 def test_trigger_scan_returns_queued_response_and_schedules_task():
+    from types import SimpleNamespace
+
     db = MagicMock()
-    db.query.return_value.filter.return_value.first.return_value = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = MagicMock(
+        user_id=1
+    )
 
     def assign_scan_id(scan):
         scan.id = 99
@@ -47,7 +51,14 @@ def test_trigger_scan_returns_queued_response_and_schedules_task():
     db.refresh.side_effect = assign_scan_id
     tasks = BackgroundTasks()
 
-    response = asyncio.run(trigger_scan(email_id=5, background_tasks=tasks, db=db))
+    response = asyncio.run(
+        trigger_scan(
+            email_id=5,
+            background_tasks=tasks,
+            db=db,
+            user=SimpleNamespace(id=1, email="t@example.com"),
+        )
+    )
 
     assert response.status == "queued"
     assert response.scan_id == 99

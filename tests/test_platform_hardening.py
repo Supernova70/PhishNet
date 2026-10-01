@@ -161,40 +161,52 @@ class TestRetentionPurge:
 class TestGlobalSse:
     def test_terminal_event_reaches_global_subscribers(self):
         q = asyncio.Queue(maxsize=10)
-        _global_subscribers.append(q)
+        _global_subscribers.append((q, 7))
         try:
             publish_scan_event(1, {"type": "complete", "scan_id": 1,
-                                   "final_score": 55.0})
+                                   "final_score": 55.0, "user_id": 7}, user_id=7)
             assert q.get_nowait()["type"] == "complete"
         finally:
-            _global_subscribers.remove(q)
+            _global_subscribers.remove((q, 7))
 
     def test_incomplete_low_risk_not_broadcast(self):
         q = asyncio.Queue(maxsize=10)
-        _global_subscribers.append(q)
+        _global_subscribers.append((q, 7))
         try:
             publish_scan_event(1, {"type": "started", "scan_id": 1,
-                                   "final_score": 0})
+                                   "final_score": 0}, user_id=7)
             assert q.empty()
         finally:
-            _global_subscribers.remove(q)
+            _global_subscribers.remove((q, 7))
 
     def test_error_event_broadcast(self):
         q = asyncio.Queue(maxsize=10)
-        _global_subscribers.append(q)
+        _global_subscribers.append((q, 7))
         try:
-            publish_scan_event(3, {"type": "error", "scan_id": 3})
+            publish_scan_event(3, {"type": "error", "scan_id": 3, "user_id": 7},
+                               user_id=7)
             assert q.get_nowait()["type"] == "error"
         finally:
-            _global_subscribers.remove(q)
+            _global_subscribers.remove((q, 7))
+
+    def test_other_accounts_events_filtered(self):
+        q = asyncio.Queue(maxsize=10)
+        _global_subscribers.append((q, 7))
+        try:
+            publish_scan_event(3, {"type": "error", "scan_id": 3, "user_id": 99},
+                               user_id=99)
+            assert q.empty()
+        finally:
+            _global_subscribers.remove((q, 7))
 
     def test_generator_emits_connected_then_events(self):
         async def run():
             q = asyncio.Queue(maxsize=10)
-            gen = _global_event_generator(q)
+            gen = _global_event_generator(q, 7)
             first = await gen.__anext__()
             assert '"scope": "global"' in first
-            q.put_nowait({"type": "complete", "scan_id": 9, "final_score": 80})
+            q.put_nowait({"type": "complete", "scan_id": 9, "final_score": 80,
+                          "user_id": 7})
             second = await gen.__anext__()
             await gen.aclose()
             return second

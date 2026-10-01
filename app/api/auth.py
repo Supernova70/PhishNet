@@ -52,8 +52,9 @@ def _login_error(message: str) -> RedirectResponse:
 
 
 def _audit(db: Session, user: User, action: str, detail: Optional[dict] = None) -> None:
-    db.add(AuditLog(actor=str(user.id), action=action, entity_type="user",
-                    entity_id=user.id, detail_json=detail))
+    # user_id tags the row for per-account /audit listings (tenancy).
+    db.add(AuditLog(user_id=user.id, actor=str(user.id), action=action,
+                    entity_type="user", entity_id=user.id, detail_json=detail))
 
 
 def _upsert_user(db: Session, payload: dict) -> User:

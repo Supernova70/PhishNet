@@ -31,6 +31,9 @@ class Scan(Base):
     __tablename__ = "scans"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )
     email_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("emails.id"), index=True
     )

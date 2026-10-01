@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db, owned_or_404
 from app.engines.correlation.campaign_clustering import (
     ScanInput,
     cluster_scans,
@@ -41,6 +41,7 @@ from app.models.email import Email
 from app.models.indicator import Indicator
 from app.models.ip_intel import IpIntel
 from app.models.scan import Scan, Verdict
+from app.models.user import User
 from app.services.ip_intel_service import IpIntelService
 
 logger = logging.getLogger(__name__)
@@ -52,10 +53,9 @@ TRACE_REFRESH_MAX_IPS = 10   # refresh=true: enrich synchronously
 TRACE_BG_MAX_IPS = 6         # background: queued after the response
 
 
-def _get_email(db: Session, email_id: int) -> Email:
+def _get_email(db: Session, email_id: int, user: User) -> Email:
     email = db.query(Email).filter(Email.id == email_id).first()
-    if email is None:
-        raise HTTPException(status_code=404, detail="Email not found")
+    owned_or_404(email, user)
     return email
 
 
@@ -108,10 +108,27 @@ def _hops_payload(db: Session, email: Email) -> list:
     return []
 
 
+def _own_hop_ip_subquery(db: Session, user: User):
+    """Distinct hop IPs from the signed-in account's emails."""
+    from app.models.email_source import ReceivedHop
+
+    return (
+        db.query(ReceivedHop.from_ip)
+        .join(Email, Email.id == ReceivedHop.email_id)
+        .filter(Email.user_id == user.id, ReceivedHop.from_ip.isnot(None))
+        .distinct()
+        .subquery()
+    )
+
+
 @router.get("/emails/{email_id}/headers")
-async def get_email_headers(email_id: int, db: Session = Depends(get_db)):
+async def get_email_headers(
+    email_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """Parsed header evidence: Received chain + SPF/DKIM/DMARC results."""
-    email = _get_email(db, email_id)
+    email = _get_email(db, email_id, user)
     source = email.source
 
     from app.models.email_source import AuthResult
@@ -126,10 +143,11 @@ async def get_email_headers(email_id: int, db: Session = Depends(get_db)):
         audit(
             db,
             "raw_view",
-            actor="api",
+            actor=user.email,
             entity_type="email_headers",
             entity_id=email_id,
             detail={"raw_sha256": source.raw_sha256 if source else None},
+            user_id=user.id,
         )
     return {
         "email_id": email_id,
@@ -194,6 +212,7 @@ async def get_email_trace(
     background_tasks: BackgroundTasks,
     refresh: bool = Query(False, description="Force live geo/IP enrichment"),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Origin trace: earliest external hop + geo/ASN/reputation intel.
 
@@ -201,7 +220,7 @@ async def get_email_trace(
     (`enriching` in the payload tells the FE to re-poll), and
     `refresh=true` enriches synchronously (origin first, then hops).
     """
-    email = _get_email(db, email_id)
+    email = _get_email(db, email_id, user)
     hops = _hops_payload(db, email)
 
     # Origin from parsed hop dicts (chronological order guaranteed)
@@ -288,6 +307,7 @@ async def get_email_trace(
 async def attribution_stats(
     limit: int = Query(500, ge=1, le=5000),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Attribution-kind counts over recent verdicts (plan §6 KPI, FE-C5).
 
@@ -297,6 +317,8 @@ async def attribution_stats(
     """
     rows = (
         db.query(Verdict.breakdown)
+        .join(Scan, Scan.id == Verdict.scan_id)
+        .filter(Scan.user_id == user.id)
         .order_by(Verdict.id.desc())
         .limit(limit)
         .all()
@@ -317,18 +339,24 @@ async def attribution_stats(
 
 
 @router.get("/ips/stats")
-async def ip_stats(db: Session = Depends(get_db)):
-    """Aggregate cache-only geo stats for the dashboard (never hits network)."""
-    from sqlalchemy import func
+async def ip_stats(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Account-scoped geo stats (IPs seen in your emails' hop chains)."""
+    from sqlalchemy import func, select
 
+    hop_ips = _own_hop_ip_subquery(db, user)
+    scoped = db.query(IpIntel).filter(IpIntel.ip.in_(select(hop_ips.c.from_ip)))
     rows = (
         db.query(IpIntel.country, func.count(IpIntel.ip))
+        .filter(IpIntel.ip.in_(select(hop_ips.c.from_ip)))
         .group_by(IpIntel.country)
         .order_by(func.count(IpIntel.ip).desc())
         .limit(10)
         .all()
     )
-    total = db.query(func.count(IpIntel.ip)).scalar() or 0
+    total = scoped.count() or 0
     return {
         "total_ips": int(total),
         "countries": [{"country": country, "count": int(n)} for country, n in rows],
@@ -336,17 +364,27 @@ async def ip_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/ips/geo")
-async def ip_geo_points(db: Session = Depends(get_db)):
-    """Geo-plottable IP points for the dashboard 3D globe (cache-only)."""
-    from sqlalchemy import func
+async def ip_geo_points(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Account-scoped geo-plottable IP points (your emails' hop chains)."""
+    from sqlalchemy import func, select
 
+    hop_ips = _own_hop_ip_subquery(db, user)
     rows = (
         db.query(IpIntel)
-        .filter(IpIntel.lat.isnot(None), IpIntel.lon.isnot(None))
+        .filter(
+            IpIntel.ip.in_(select(hop_ips.c.from_ip)),
+            IpIntel.lat.isnot(None),
+            IpIntel.lon.isnot(None),
+        )
         .order_by(IpIntel.ip.asc())
         .all()
     )
-    total = int(db.query(func.count(IpIntel.ip)).scalar() or 0)
+    total = db.query(func.count(IpIntel.ip)).filter(
+        IpIntel.ip.in_(select(hop_ips.c.from_ip))
+    ).scalar() or 0
     return {
         "points": [
             {
@@ -376,6 +414,7 @@ async def get_ip_intel(
     ip: str,
     refresh: bool = Query(False, description="Force live provider lookup"),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """
     IP intelligence. Default is strictly cache-only; `refresh=true`
@@ -399,17 +438,21 @@ async def list_indicators(
     type: Optional[str] = Query(None, description="Filter by indicator type"),
     limit: int = Query(200, ge=1, le=1000),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    """Global IoC search: rows aggregated across scans by (type, value)."""
+    """IoC search over this account's scans: aggregated by (type, value)."""
     from sqlalchemy import func
 
-    query = db.query(
-        Indicator.type,
-        Indicator.value,
-        func.count(func.distinct(Indicator.scan_id)).label("scan_count"),
-        func.sum(Indicator.sighting_count).label("sightings"),
-        func.min(Indicator.first_seen).label("first_seen"),
-        func.max(Indicator.last_seen).label("last_seen"),
+    query = (
+        db.query(
+            Indicator.type,
+            Indicator.value,
+            func.count(func.distinct(Indicator.scan_id)).label("scan_count"),
+            func.sum(Indicator.sighting_count).label("sightings"),
+            func.min(Indicator.first_seen).label("first_seen"),
+            func.max(Indicator.last_seen).label("last_seen"),
+        )
+        .filter(Indicator.user_id == user.id)
     )
     if type:
         query = query.filter(Indicator.type == type)
@@ -443,11 +486,12 @@ async def get_graph(
     scan_id: Optional[int] = None,
     limit: int = Query(500, ge=1, le=2000),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Attribution graph: node-capped JSON for the force-directed view."""
     return build_graph_from_db(
         db, min_score=min_score, campaign_id=campaign_id, scan_id=scan_id,
-        limit=limit,
+        limit=limit, user_id=user.id,
     )
 
 
@@ -462,8 +506,9 @@ def _live_dns_resolver():
 async def list_campaigns(
     status: Optional[str] = Query(None, description="Filter by status"),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    query = db.query(Campaign)
+    query = db.query(Campaign).filter(Campaign.user_id == user.id)
     if status:
         query = query.filter(Campaign.status == status)
     rows = query.order_by(Campaign.email_count.desc(), Campaign.avg_score.desc()).all()
@@ -471,17 +516,21 @@ async def list_campaigns(
 
 
 @router.post("/campaigns/recluster")
-async def recluster_campaigns(db: Session = Depends(get_db)):
+async def recluster_campaigns(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """
-    Backfill: rebuild campaign clusters over all scans that have verdicts.
+    Backfill: rebuild campaign clusters over this account's scans.
 
-    Replaces existing campaign rows (they are derived data, always
+    Replaces only this account's campaign rows (derived data, always
     regenerable from indicators + subjects).
     """
     rows = (
         db.query(Scan, Verdict, Email)
         .join(Verdict, Verdict.scan_id == Scan.id)
         .join(Email, Email.id == Scan.email_id)
+        .filter(Scan.user_id == user.id)
         .all()
     )
     if not rows:
@@ -507,7 +556,7 @@ async def recluster_campaigns(db: Session = Depends(get_db)):
     ]
 
     clusters = cluster_scans(inputs)
-    campaigns = save_clusters(db, clusters)
+    campaigns = save_clusters(db, clusters, user_id=user.id)
     db.commit()
 
     return {
@@ -518,10 +567,13 @@ async def recluster_campaigns(db: Session = Depends(get_db)):
 
 
 @router.get("/campaigns/{campaign_id}")
-async def get_campaign(campaign_id: int, db: Session = Depends(get_db)):
+async def get_campaign(
+    campaign_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+    owned_or_404(campaign, user)
     members = (
         db.query(Scan, Verdict, Email)
         .outerjoin(Verdict, Verdict.scan_id == Scan.id)
@@ -561,6 +613,7 @@ async def update_campaign(
     campaign_id: int,
     payload: CampaignUpdate,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Update analyst-managed campaign fields: status + notes (B4).
 
@@ -568,8 +621,7 @@ async def update_campaign(
     default so existing filters keep working.
     """
     campaign = db.query(Campaign).filter(Campaign.id == campaign_id).first()
-    if campaign is None:
-        raise HTTPException(status_code=404, detail="Campaign not found")
+    owned_or_404(campaign, user)
 
     if payload.status is not None:
         if payload.status not in CAMPAIGN_STATUSES:
@@ -597,6 +649,7 @@ async def get_domain_intel(
     domain: str,
     dns: Optional[bool] = None,
     rdap: Optional[bool] = None,
+    user: User = Depends(get_current_user),
 ):
     """DNS posture + RDAP registration age for one sending domain (B1).
 

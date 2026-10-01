@@ -73,10 +73,12 @@ def store_indicators(
     scan_id: int,
     pairs: Iterable[IndicatorPair],
     now: Optional[datetime] = None,
+    user_id: Optional[int] = None,
 ) -> List[Indicator]:
     """
     Upsert indicator rows for one scan (per-scan unique). Re-storing the
     same scan bumps sighting_count; other scans get their own rows.
+    user_id is row-level ownership (mirrors the owning account).
     """
     now = now or datetime.utcnow()
     touched: List[Indicator] = []
@@ -92,6 +94,7 @@ def store_indicators(
         )
         if row is None:
             row = Indicator(
+                user_id=user_id,
                 scan_id=scan_id,
                 type=kind,
                 value=value,

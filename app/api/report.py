@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.api.intel import _hops_payload
 from app.config import get_settings
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db, owned_or_404
 from app.engines.intel.origin import build_origin_trace
 from app.models.campaign import Campaign
 from app.models.evidence import EvidenceChain
@@ -25,6 +25,7 @@ from app.models.scan import Scan, Verdict
 from app.services.evidence_service import append_evidence, audit
 from app.services.ip_intel_service import IpIntelService
 from app.services.pii import maybe_mask_email, maybe_mask_ip
+from app.models.user import User
 
 router = APIRouter()
 
@@ -47,13 +48,12 @@ async def scan_report(
     scan_id: int,
     export: bool = Query(False, description="Append evidence-chain row + audit"),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     scan = db.get(Scan, scan_id)
-    if scan is None:
-        raise HTTPException(status_code=404, detail="Scan not found")
+    owned_or_404(scan, user)
     email = db.get(Email, scan.email_id)
-    if email is None:
-        raise HTTPException(status_code=404, detail="Email not found")
+    owned_or_404(email, user)
     verdict = db.query(Verdict).filter(Verdict.scan_id == scan.id).first()
 
     # ── gather evidence ────────────────────────────────────────
@@ -87,7 +87,10 @@ async def scan_report(
         campaign = db.get(Campaign, scan.campaign_id)
     evidence_rows = (
         db.query(EvidenceChain)
-        .filter_by(scan_id=scan.id)
+        .filter(
+            EvidenceChain.scan_id == scan.id,
+            EvidenceChain.user_id == user.id,
+        )
         .order_by(EvidenceChain.id.asc())
         .all()
     )
@@ -169,20 +172,25 @@ async def scan_report(
             raw_sha256=source.raw_sha256 if source else None,
             report_sha256=report_sha,
             actor="report-export",
+            user_id=user.id,
         )
         audit(
             db,
             "report_export",
-            actor="api",
+            actor=user.email,
             entity_type="scan",
             entity_id=scan.id,
             detail={"report_sha256": report_sha},
+            user_id=user.id,
         )
         # refresh custody block so the response shows the new row
         report["evidence_chain"] = [
             e.to_dict()
             for e in db.query(EvidenceChain)
-            .filter_by(scan_id=scan.id)
+            .filter(
+                EvidenceChain.scan_id == scan.id,
+                EvidenceChain.user_id == user.id,
+            )
             .order_by(EvidenceChain.id.asc())
             .all()
         ]

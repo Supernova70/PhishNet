@@ -44,8 +44,9 @@ settings = get_settings()
 class EmailService:
     """Handles email fetching, parsing, and storage."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, user_id: Optional[int] = None):
         self.db = db
+        self.user_id = user_id  # row-level tenancy: rows inserted for this account
 
     # ── Public API ───────────────────────────────────────
 
@@ -66,7 +67,10 @@ class EmailService:
             # Skip duplicates (dedup on RFC 2822 Message-ID)
             existing = (
                 self.db.query(Email)
-                .filter(Email.message_id == email_data["message_id"])
+                .filter(
+                    Email.user_id == self.user_id,
+                    Email.message_id == email_data["message_id"],
+                )
                 .first()
             )
             if existing:
@@ -102,7 +106,10 @@ class EmailService:
                 data = self._parse_mime(msg, raw)
                 existing = (
                     self.db.query(Email)
-                    .filter(Email.message_id == data["message_id"])
+                    .filter(
+                        Email.user_id == self.user_id,
+                        Email.message_id == data["message_id"],
+                    )
                     .first()
                 )
                 if existing:
@@ -257,6 +264,7 @@ class EmailService:
         raw_bytes: Optional[bytes] = data.pop("raw_bytes", None)
 
         email_obj = Email(
+            user_id=self.user_id,
             message_id=data["message_id"],
             sender=data["sender"],
             subject=data["subject"],
@@ -404,7 +412,10 @@ class EmailService:
         """Return the last stored UID for the given mailbox, or 0 if none."""
         state = (
             self.db.query(FetchState)
-            .filter(FetchState.mailbox == mailbox)
+            .filter(
+                FetchState.user_id == self.user_id,
+                FetchState.mailbox == mailbox,
+            )
             .first()
         )
         return state.last_uid if state else 0
@@ -417,11 +428,14 @@ class EmailService:
         """
         state = (
             self.db.query(FetchState)
-            .filter(FetchState.mailbox == mailbox)
+            .filter(
+                FetchState.user_id == self.user_id,
+                FetchState.mailbox == mailbox,
+            )
             .first()
         )
         if state is None:
-            state = FetchState(mailbox=mailbox)
+            state = FetchState(user_id=self.user_id, mailbox=mailbox)
             self.db.add(state)
 
         state.last_uid = max_uid

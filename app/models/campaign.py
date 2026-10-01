@@ -8,7 +8,7 @@ valid.
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import DateTime, Float, Integer, String, JSON, Index, Text
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, JSON, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -18,6 +18,9 @@ class Campaign(Base):
     __tablename__ = "campaigns"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )
     name: Mapped[str] = mapped_column(String(256))
     first_seen: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     last_seen: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

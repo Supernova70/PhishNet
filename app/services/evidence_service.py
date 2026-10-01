@@ -69,11 +69,17 @@ def append_evidence(
     report_sha256: Optional[str] = None,
     actor: str = "system",
     now: Optional[datetime] = None,
+    user_id: Optional[int] = None,
 ) -> EvidenceChain:
-    """Append one row to the custody chain and flush (caller commits)."""
+    """Append one row to the custody chain and flush (caller commits).
+
+    user_id is row-level ownership metadata — deliberately NOT part of
+    the hashed payload so existing chain rows stay verifiable.
+    """
     now = now or datetime.utcnow()
     prev = chain_tip_hash(db)
     row = EvidenceChain(
+        user_id=user_id,
         email_id=email_id,
         scan_id=scan_id,
         raw_sha256=raw_sha256,
@@ -170,10 +176,12 @@ def audit(
     entity_id: Optional[int] = None,
     detail: Optional[dict] = None,
     commit: bool = True,
+    user_id: Optional[int] = None,
 ) -> AuditLog:
     """Append an audit row (committed immediately — access is recorded
     even if the surrounding request later fails)."""
     entry = AuditLog(
+        user_id=user_id,
         actor=actor,
         action=action,
         entity_type=entity_type,

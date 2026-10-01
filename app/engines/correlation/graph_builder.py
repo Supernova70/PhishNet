@@ -128,8 +128,12 @@ def build_graph_from_db(
     campaign_id: Optional[int] = None,
     scan_id: Optional[int] = None,
     limit: int = DEFAULT_NODE_LIMIT,
+    user_id: Optional[int] = None,
 ) -> dict:
-    """DB-backed wrapper: loads scans + verdicts + indicators, delegates."""
+    """DB-backed wrapper: loads scans + verdicts + indicators, delegates.
+
+    user_id scopes the graph to one account's scans (tenancy).
+    """
     from app.models.email import Email
     from app.models.indicator import Indicator
     from app.models.scan import Scan, Verdict
@@ -140,6 +144,8 @@ def build_graph_from_db(
         .join(Email, Email.id == Scan.email_id)
         .filter(Verdict.final_score >= min_score)
     )
+    if user_id is not None:
+        rows = rows.filter(Scan.user_id == user_id)
     if campaign_id is not None:
         rows = rows.filter(Scan.campaign_id == campaign_id)
     if scan_id is not None:

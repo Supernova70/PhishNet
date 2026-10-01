@@ -83,6 +83,7 @@ class ScanService:
         """Create a scan and execute it immediately."""
         scan = Scan(
             email_id=email.id,
+            user_id=email.user_id,
             status=ScanStatus.RUNNING.value,
             started_at=datetime.utcnow(),
         )
@@ -368,7 +369,7 @@ class ScanService:
                     origin_ip=header_result.origin_ip,
                     lookalike_brand=lk_result.matched_brand,
                 )
-                store_indicators(self.db, scan.id, pairs)
+                store_indicators(self.db, scan.id, pairs, user_id=scan.user_id)
             except Exception as exc:  # correlation must never fail a scan
                 logger.error(
                     f"Indicator extraction failed for scan {scan.id}: {exc}"
@@ -385,6 +386,7 @@ class ScanService:
                     scan_id=scan.id,
                     raw_sha256=source.raw_sha256 if source else None,
                     actor="scanner",
+                    user_id=scan.user_id,
                 )
             except Exception as exc:  # custody must never fail a scan
                 logger.error(
@@ -403,6 +405,7 @@ class ScanService:
                     breakdown=verdict.breakdown,
                     subject=email.subject,
                     sender=email.sender,
+                    user_id=scan.user_id,
                 )
                 if alert is not None:
                     self.db.add(alert)
@@ -418,6 +421,7 @@ class ScanService:
             try:
                 from app.api.scan import publish_scan_event
                 publish_scan_event(scan.id, {
+                    "user_id": scan.user_id,
                     "type": "complete",
                     "scan_id": scan.id,
                     "classification": classification,
@@ -447,7 +451,9 @@ class ScanService:
                 from app.api.scan import publish_scan_event
 
                 publish_scan_event(
-                    scan.id, {"type": "error", "scan_id": scan.id}
+                    scan.id,
+                    {"type": "error", "scan_id": scan.id, "user_id": scan.user_id},
+                    user_id=scan.user_id,
                 )
             except Exception:
                 pass  # SSE publish failure should not block error handling

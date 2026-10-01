@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional, List
 
-from sqlalchemy import String, Text, Boolean, Integer, ForeignKey, DateTime
+from sqlalchemy import String, Text, Boolean, Integer, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models import Base
@@ -13,9 +13,17 @@ class Email(Base):
     """Represents a fetched email from the user's inbox."""
 
     __tablename__ = "emails"
+    __table_args__ = (
+        # Same RFC message may exist for several accounts (shared demo
+        # mailbox) — uniqueness is scoped to the owner, not global.
+        UniqueConstraint("user_id", "message_id", name="uq_emails_user_message"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    message_id: Mapped[str] = mapped_column(String(512), unique=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )
+    message_id: Mapped[str] = mapped_column(String(512), index=True)
     sender: Mapped[str] = mapped_column(String(512), index=True)
     subject: Mapped[str] = mapped_column(String(1024), index=True)
     date: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)

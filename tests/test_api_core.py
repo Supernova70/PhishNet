@@ -16,6 +16,7 @@ from app.api.health import router as health_router
 from app.api.scan import router as scan_router
 from app.api.settings import router as settings_router
 from app.dependencies import get_db
+from tests.conftest import TEST_USER_ID, ensure_test_user, override_auth
 from app.models import Base
 from app.models.email import Attachment, Email
 from app.models.scan import Scan, ScanStatus, Verdict
@@ -34,6 +35,7 @@ def env(tmp_path):
     app.include_router(attachments_router)
     app.include_router(settings_router)
     app.dependency_overrides[get_db] = lambda: session
+    override_auth(app, ensure_test_user(session))
     yield {"app": app, "client": TestClient(app), "db": session}
     session.close()
 
@@ -41,6 +43,7 @@ def env(tmp_path):
 def seed(env):
     db = env["db"]
     email = Email(
+        user_id=TEST_USER_ID,
         message_id="<core-1>",
         sender="a@example.org", subject="Quarterly report",
         body_text="body", fetched_at=datetime(2026, 1, 3, 8, 0),
@@ -52,7 +55,7 @@ def seed(env):
         content_type="application/pdf", size_bytes=2048,
         sha256_hash="cd" * 32, storage_path=None,
     ))
-    scan = Scan(email_id=email.id, status=ScanStatus.COMPLETE.value,
+    scan = Scan(user_id=TEST_USER_ID, email_id=email.id, status=ScanStatus.COMPLETE.value,
                 completed_at=datetime(2026, 1, 3, 8, 5))
     db.add(scan)
     db.flush()
@@ -92,6 +95,7 @@ class TestEmailEndpoints:
     def test_list_emails_unscanned_has_null_status(self, env):
         db = env["db"]
         db.add(Email(
+            user_id=TEST_USER_ID,
             message_id="<core-2>", sender="b@example.org",
             subject="No scan yet", fetched_at=datetime(2026, 1, 3, 9, 0),
         ))

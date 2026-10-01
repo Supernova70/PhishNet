@@ -273,21 +273,26 @@ def _derive_name(shared: Dict[str, List[str]], members: List[ScanInput]) -> str:
     return f"campaign {min(m.id for m in members)}"
 
 
-def save_clusters(db, clusters: Sequence[CampaignCluster]) -> list:
+def save_clusters(
+    db, clusters: Sequence[CampaignCluster], user_id: Optional[int] = None
+) -> list:
     """
     Persist clusters (campaign rows + scan membership). Clears old links.
 
     Only multi-scan clusters become campaigns — a singleton is just one
     email, not a campaign, and stays with campaign_id = NULL.
+    user_id scopes the rebuild to one account (tenancy).
     """
     from app.models.campaign import Campaign
     from app.models.scan import Scan
 
-    # Detach scans from campaigns that are about to be rebuilt
-    db.query(Scan).filter(Scan.campaign_id.isnot(None)).update(
-        {Scan.campaign_id: None}, synchronize_session=False
-    )
-    for campaign in db.query(Campaign).all():
+    detach = db.query(Scan).filter(Scan.campaign_id.isnot(None))
+    purge = db.query(Campaign)
+    if user_id is not None:
+        detach = detach.filter(Scan.user_id == user_id)
+        purge = purge.filter(Campaign.user_id == user_id)
+    detach.update({Scan.campaign_id: None}, synchronize_session=False)
+    for campaign in purge.all():
         db.delete(campaign)
     db.flush()
 
@@ -296,6 +301,7 @@ def save_clusters(db, clusters: Sequence[CampaignCluster]) -> list:
         if cluster.email_count < 2:
             continue
         campaign = Campaign(
+            user_id=user_id,
             name=cluster.name,
             first_seen=cluster.first_seen,
             last_seen=cluster.last_seen,
@@ -307,7 +313,10 @@ def save_clusters(db, clusters: Sequence[CampaignCluster]) -> list:
         )
         db.add(campaign)
         db.flush()
-        db.query(Scan).filter(Scan.id.in_(cluster.scan_ids)).update(
+        membership = db.query(Scan).filter(Scan.id.in_(cluster.scan_ids))
+        if user_id is not None:
+            membership = membership.filter(Scan.user_id == user_id)
+        membership.update(
             {Scan.campaign_id: campaign.id}, synchronize_session=False
         )
         created.append(campaign)

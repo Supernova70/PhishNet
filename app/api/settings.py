@@ -8,7 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db, require_admin
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["Settings"])
@@ -70,8 +71,11 @@ async def get_settings():
 
 
 @router.put("", response_model=SystemConfig)
-async def update_settings(req: UpdateSettingsRequest):
-    """Update runtime settings (persisted to .env file)."""
+async def update_settings(
+    req: UpdateSettingsRequest,
+    user: User = Depends(require_admin),
+):
+    """Update runtime settings (admin only, persisted to .env file)."""
     env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
 
     updates = {}
@@ -112,8 +116,11 @@ async def update_settings(req: UpdateSettingsRequest):
 
 
 @router.post("/api-keys", response_model=ApiKeyResponse)
-async def update_api_key(req: ApiKeyUpdate):
-    """Update an API key for an external service."""
+async def update_api_key(
+    req: ApiKeyUpdate,
+    user: User = Depends(require_admin),
+):
+    """Update an API key for an external service (admin only)."""
     env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
 
     env_key_map = {

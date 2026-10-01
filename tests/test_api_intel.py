@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from unittest.mock import patch
 
 from app.api.intel import router as intel_router
+from tests.conftest import TEST_USER_ID, ensure_test_user, override_auth
 from app.dependencies import get_db
 from app.models import Base
 from app.models.campaign import Campaign
@@ -36,6 +37,7 @@ def env(tmp_path):
         return session
 
     app.dependency_overrides[get_db] = override_get_db
+    override_auth(app, ensure_test_user(session))
 
     yield {
         "app": app,
@@ -47,6 +49,7 @@ def env(tmp_path):
 
 def seed_email(db, mid="m1", with_source=True, with_hops=True):
     email = Email(
+        user_id=TEST_USER_ID,
         message_id=f"<{mid}>",
         sender="Billing <billing@paypa1.com>",
         subject="Account notice",
@@ -106,13 +109,13 @@ def seed_email(db, mid="m1", with_source=True, with_hops=True):
 
 
 def seed_scan(db, email, score=75.0, iocs=()):
-    scan = Scan(email_id=email.id, status="complete",
+    scan = Scan(user_id=TEST_USER_ID, email_id=email.id, status="complete",
                 completed_at=datetime(2026, 1, 1, 12, 5))
     db.add(scan)
     db.flush()
     db.add(Verdict(scan_id=scan.id, final_score=score, classification="dangerous"))
     for kind, value in iocs:
-        db.add(Indicator(scan_id=scan.id, type=kind, value=value,
+        db.add(Indicator(user_id=TEST_USER_ID, scan_id=scan.id, type=kind, value=value,
                          first_seen=datetime(2026, 1, 1), last_seen=datetime(2026, 1, 1),
                          sighting_count=1))
     db.commit()
@@ -305,10 +308,19 @@ class TestIpStatsEndpoint:
         assert data == {"total_ips": 0, "countries": []}
 
     def test_country_counts(self, env):
+        # Scoped to IPs seen in this account's hop chains (tenancy).
+        email = seed_email(env["db"], mid="stats", with_source=False,
+                           with_hops=False)
         for i, country in enumerate(["Germany", "Germany", "Netherlands"]):
+            ip = f"203.0.113.{i}"
             env["db"].add(IpIntel(
-                ip=f"203.0.113.{i}", country=country,
-                fetched_at=datetime(2026, 1, 1),
+                ip=ip, country=country, fetched_at=datetime(2026, 1, 1),
+            ))
+            env["db"].add(ReceivedHop(
+                email_id=email.id, hop_index=i, raw=f"from {ip}",
+                from_host="h.example", from_ip=ip, by_host="mx.example",
+                timestamp_utc=datetime(2026, 1, 1, 12, i),
+                is_internal=False, parse_confidence=1.0,
             ))
         env["db"].commit()
         data = env["client"].get("/ips/stats").json()
@@ -325,6 +337,9 @@ class TestIpGeoEndpoint:
         assert data == {"points": [], "total_ips": 0, "geoed": 0}
 
     def test_filters_unlocated_and_flags(self, env):
+        # IPs must appear in this account's hop chains to be in scope.
+        email = seed_email(env["db"], mid="geo", with_source=False,
+                           with_hops=False)
         env["db"].add_all([
             IpIntel(
                 ip="185.220.101.5", country="Germany", country_code="DE",
@@ -334,6 +349,13 @@ class TestIpGeoEndpoint:
             # No coordinates → must not appear on the globe payload.
             IpIntel(ip="203.0.113.9", fetched_at=datetime(2026, 1, 1)),
         ])
+        for i, ip in enumerate(["185.220.101.5", "203.0.113.9"]):
+            env["db"].add(ReceivedHop(
+                email_id=email.id, hop_index=i, raw=f"from {ip}",
+                from_host="h.example", from_ip=ip, by_host="mx.example",
+                timestamp_utc=datetime(2026, 1, 1, 12, i),
+                is_internal=False, parse_confidence=1.0,
+            ))
         env["db"].commit()
         data = env["client"].get("/ips/geo").json()
         assert data["total_ips"] == 2
@@ -430,7 +452,7 @@ class TestCampaignsEndpoints:
         assert body == {"campaigns": [], "scans_clustered": 0, "scans_total": 0}
 
     def test_status_filter(self, env):
-        env["db"].add(Campaign(name="x", status="closed"))
+        env["db"].add(Campaign(user_id=TEST_USER_ID, name="x", status="closed"))
         env["db"].commit()
         assert env["client"].get("/campaigns?status=open").json()["count"] == 0
         assert env["client"].get("/campaigns?status=closed").json()["count"] == 1
@@ -469,7 +491,7 @@ class TestGraphScanFilter:
 
 class TestCampaignUpdate:
     def _campaign(self, env, status="open"):
-        campaign = Campaign(name="run-1", status=status)
+        campaign = Campaign(user_id=TEST_USER_ID, name="run-1", status=status)
         env["db"].add(campaign)
         env["db"].commit()
         return campaign

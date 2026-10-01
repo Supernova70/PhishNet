@@ -54,3 +54,18 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if user is None:
         raise HTTPException(status_code=401, detail="Unknown user")
     return user
+
+
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """403 unless the signed-in user has the admin role."""
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return user
+
+
+def owned_or_404(obj, user: User):
+    """Return obj only if it belongs to user; else 404 (never 403 — a 403
+    would confirm the row exists, disclosing other tenants' activity)."""
+    if obj is None or getattr(obj, "user_id", None) != user.id:
+        raise HTTPException(status_code=404, detail="Not found")
+    return obj

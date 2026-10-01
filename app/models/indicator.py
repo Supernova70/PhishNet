@@ -10,7 +10,7 @@ the attribution graph join on; `/indicators` aggregates across scans
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Integer, String, UniqueConstraint, Index
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
@@ -40,6 +40,9 @@ class Indicator(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
     scan_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     type: Mapped[str] = mapped_column(String(32))
     value: Mapped[str] = mapped_column(String(512))

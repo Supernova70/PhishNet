@@ -8,7 +8,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.dependencies import SessionLocal, get_db
+from app.dependencies import SessionLocal, get_current_user, get_db, owned_or_404
 from app.models.email import Email
 from app.models.scan import Scan, ScanStatus
 from app.schemas.email import (
@@ -18,6 +18,7 @@ from app.schemas.email import (
     EmailListResponse,
 )
 from app.schemas.scan import ScanOut
+from app.models.user import User
 from app.services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
@@ -30,15 +31,17 @@ SCAN_TIMEOUT_SECONDS = 240
 async def fetch_emails(
     limit: int = Query(20, ge=1, le=100, description="Max emails to fetch"),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """
     Fetch recent emails from the configured IMAP inbox.
 
     Connects to the email server, downloads recent messages,
-    parses them, and stores them in the database.
+    parses them, and stores them in the database under the
+    signed-in account (row-level tenancy).
     """
     try:
-        service = EmailService(db)
+        service = EmailService(db, user_id=user.id)
         new_count, total_fetched = service.fetch_and_store(limit=limit)
         return FetchEmailsResponse(
             status="success",
@@ -59,9 +62,10 @@ async def list_emails(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
-    """List all fetched emails with pagination."""
-    query = db.query(Email)
+    """List the signed-in account's fetched emails with pagination."""
+    query = db.query(Email).filter(Email.user_id == user.id)
     
     if sender:
         query = query.filter(Email.sender.ilike(f"%{sender}%"))
@@ -92,11 +96,14 @@ async def list_emails(
 
 
 @router.get("/{email_id}", response_model=EmailDetailOut)
-async def get_email(email_id: int, db: Session = Depends(get_db)):
-    """Get full email details by ID."""
+async def get_email(
+    email_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get full email details by ID (own emails only)."""
     email = db.query(Email).filter(Email.id == email_id).first()
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
+    owned_or_404(email, user)
 
     data = email.to_dict()
     data["body_text"] = email.body_text
@@ -106,11 +113,14 @@ async def get_email(email_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{email_id}/latest-scan")
-async def get_latest_scan(email_id: int, db: Session = Depends(get_db)):
-    """Get the most recent scan result for a given email."""
+async def get_latest_scan(
+    email_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get the most recent scan result for a given email (own only)."""
     email = db.query(Email).filter(Email.id == email_id).first()
-    if not email:
-        raise HTTPException(status_code=404, detail="Email not found")
+    owned_or_404(email, user)
 
     scan = (
         db.query(Scan)
@@ -199,22 +209,23 @@ async def bulk_scan(
     request: BulkScanRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """
-    Trigger scans on multiple emails at once.
+    Trigger scans on multiple of your emails at once.
 
-    Pass email_ids in the body, or omit to scan all unscanned emails.
+    Pass email_ids in the body, or omit to scan all your unscanned emails.
     """
     if request.email_ids:
         emails = (
             db.query(Email)
-            .filter(Email.id.in_(request.email_ids))
+            .filter(Email.user_id == user.id, Email.id.in_(request.email_ids))
             .all()
         )
     else:
         emails = (
             db.query(Email)
-            .filter(~Email.scans.any())
+            .filter(Email.user_id == user.id, ~Email.scans.any())
             .all()
         )
 
@@ -224,6 +235,7 @@ async def bulk_scan(
     scan_ids = []
     for email in emails:
         scan = Scan(
+            user_id=email.user_id,
             email_id=email.id,
             status=ScanStatus.PENDING.value,
             started_at=None,

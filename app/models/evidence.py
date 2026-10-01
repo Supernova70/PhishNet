@@ -20,6 +20,9 @@ class EvidenceChain(Base):
     __tablename__ = "evidence_chain"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id"), nullable=True, index=True
+    )
     email_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("emails.id"), nullable=True, index=True
     )

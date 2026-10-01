@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.api.alerts import router as alerts_router
 from app.dependencies import get_db
+from tests.conftest import TEST_USER_ID, ensure_test_user, override_auth
 from app.engines.header_analyzer import HeaderAnalysisResult
 from app.models import Base
 from app.models.alert import Alert
@@ -92,22 +93,24 @@ def env(tmp_path):
     app = FastAPI()
     app.include_router(alerts_router)
     app.dependency_overrides[get_db] = lambda: session
+    override_auth(app, ensure_test_user(session))
     yield {"client": TestClient(app), "db": session}
     session.close()
 
 
 def seed(db, *, score, read=None, subject="hello"):
     email = Email(
+        user_id=TEST_USER_ID,
         message_id=f"<a-{score}-{id(db)}-{subject}>",
         sender="x@y.co", subject=subject, fetched_at=datetime(2026, 1, 1),
     )
     db.add(email)
     db.flush()
-    scan = Scan(email_id=email.id, status="complete",
+    scan = Scan(user_id=TEST_USER_ID, email_id=email.id, status="complete",
                 completed_at=datetime(2026, 1, 1))
     db.add(scan)
     db.flush()
-    db.add(Alert(scan_id=scan.id, email_id=email.id, score=score,
+    db.add(Alert(user_id=TEST_USER_ID, scan_id=scan.id, email_id=email.id, score=score,
                  classification="dangerous", reasons=["high_risk"],
                  subject=subject, sender="x@y.co", read_at=read))
     db.commit()
