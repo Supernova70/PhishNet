@@ -55,9 +55,13 @@ fi
 echo -e "${YELLOW}[3/6] Checking TLS certificate...${NC}"
 SELF_SIGNED=""
 RENEWAL_CONF="/etc/letsencrypt/renewal/${DUCKDNS_DOMAIN}.duckdns.org.conf"
-if [ -f "$CERT_DIR/fullchain.pem" ]; then
+# NOTE: /etc/letsencrypt/live is mode 700 root — a plain [ -f ] as the
+# invoking user always fails and used to trick the script into writing a
+# self-signed cert through the symlinks (clobbering the LE archive).
+# sudo test so the check runs with root's view of the directory.
+if sudo test -f "$CERT_DIR/fullchain.pem"; then
     echo -e "${GREEN}Certificate found: $CERT_DIR/fullchain.pem${NC}"
-elif [ -f "$RENEWAL_CONF" ]; then
+elif sudo test -f "$RENEWAL_CONF"; then
     # A certbot lineage exists but the cert files are broken. Writing a
     # self-signed cert here would clobber the archive through the live/
     # symlinks and permanently destroy the Let's Encrypt key pair — refuse.
