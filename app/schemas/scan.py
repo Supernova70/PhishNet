@@ -23,6 +23,7 @@ class VerdictOut(BaseModel):
 class ScanOut(BaseModel):
     id: int
     email_id: int
+    email_number: Optional[int] = None
     status: str
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

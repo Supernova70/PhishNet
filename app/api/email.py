@@ -28,6 +28,23 @@ router = APIRouter(prefix="/emails", tags=["Emails"])
 SCAN_TIMEOUT_SECONDS = 240
 
 
+def email_numbers(db: Session, user_id: int) -> dict[int, int]:
+    """Per-account email sequence numbers: the user's oldest email = #1.
+
+    Global ``Email.id`` values interleave all accounts (user A's fifth email
+    can be id 187), so any user-facing "#N" must be this per-account rank —
+    never the raw id. Numbers are stable: ranked by insertion id ascending.
+    """
+    ids = [
+        row[0]
+        for row in db.query(Email.id)
+        .filter(Email.user_id == user_id)
+        .order_by(Email.id.asc())
+        .all()
+    ]
+    return {email_id: i + 1 for i, email_id in enumerate(ids)}
+
+
 @router.post("/fetch", response_model=FetchEmailsResponse)
 async def fetch_emails(
     limit: int = Query(20, ge=1, le=100, description="Max emails to fetch"),
@@ -100,9 +117,10 @@ async def list_emails(
         .limit(limit)
         .all()
     )
+    numbers = email_numbers(db, user.id)
     return EmailListResponse(
         total=total,
-        emails=[EmailOut(**e.to_dict()) for e in emails],
+        emails=[EmailOut(**e.to_dict(), number=numbers.get(e.id)) for e in emails],
     )
 
 
@@ -117,6 +135,7 @@ async def get_email(
     owned_or_404(email, user)
 
     data = email.to_dict()
+    data["number"] = email_numbers(db, email.user_id).get(email.id)
     data["body_text"] = email.body_text
     data["body_html"] = email.body_html
     data["attachments"] = [att.to_dict() for att in email.attachments]
@@ -140,7 +159,8 @@ async def get_latest_scan(
         .first()
     )
     if scan:
-        return ScanOut(**scan.to_dict())
+        numbers = email_numbers(db, email.user_id)
+        return ScanOut(**scan.to_dict(), email_number=numbers.get(scan.email_id))
     return {"scan": None}
 
 

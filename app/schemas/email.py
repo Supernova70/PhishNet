@@ -20,6 +20,7 @@ class AttachmentOut(BaseModel):
 
 class EmailOut(BaseModel):
     id: int
+    number: Optional[int] = None
     message_id: str
     sender: str
     subject: str

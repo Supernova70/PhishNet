@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.dependencies import SessionLocal, get_current_user, get_db, owned_or_404
+from app.api.email import email_numbers
 from app.models.email import Email
 from app.models.indicator import Indicator
 from app.models.scan import Scan, ScanStatus, Verdict
@@ -130,9 +131,10 @@ async def list_scans(
 
     total = query.count()
     scans = query.order_by(Scan.id.desc()).offset(skip).limit(limit).all()
+    numbers = email_numbers(db, user.id)
     return ScanListResponse(
         total=total,
-        scans=[ScanOut(**s.to_dict()) for s in scans],
+        scans=[ScanOut(**s.to_dict(), email_number=numbers.get(s.email_id)) for s in scans],
     )
 
 
@@ -257,7 +259,10 @@ async def get_scan(
     """Get scan details including verdict (own scans only)."""
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     owned_or_404(scan, user)
-    return ScanOut(**scan.to_dict())
+    return ScanOut(
+        **scan.to_dict(),
+        email_number=email_numbers(db, scan.user_id).get(scan.email_id),
+    )
 
 
 # ── AI Threat Summary ──────────────────────────────────────
