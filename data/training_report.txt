@@ -1,7 +1,7 @@
-Phishing Guard V2 — ML Training Report
+Phishing Guard V2 â€” ML Training Report
 ==================================================
 
-Dataset: 82440 emails
+Dataset: 82526 emails
 Train/Test Split: 80/20 (stratified)
 Best C (regularization): 10.0
 TF-IDF features: 50000
@@ -9,26 +9,26 @@ N-gram range: (1, 2)
 
 TEST SET METRICS
 ------------------------------
-Accuracy:  0.9922
-F1 Score:  0.9925
+Accuracy:  0.9918
+F1 Score:  0.9921
 ROC-AUC:   0.9996
 
               precision    recall  f1-score   support
 
-  Legitimate       0.99      0.99      0.99      7915
-    Phishing       0.99      0.99      0.99      8573
+  Legitimate       0.99      0.99      0.99      7930
+    Phishing       0.99      0.99      0.99      8576
 
-    accuracy                           0.99     16488
-   macro avg       0.99      0.99      0.99     16488
-weighted avg       0.99      0.99      0.99     16488
+    accuracy                           0.99     16506
+   macro avg       0.99      0.99      0.99     16506
+weighted avg       0.99      0.99      0.99     16506
 
 
 Confusion Matrix:
-[[7843   72]
- [  56 8517]]
+[[7849   81]
+ [  54 8522]]
 
 OVERFIT CHECK
 ------------------------------
 CV Train F1: 0.9995
-CV Test  F1: 0.9915
-Gap:         0.0080
+CV Test  F1: 0.9914
+Gap:         0.0081
