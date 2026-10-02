@@ -276,6 +276,19 @@ function RecentActivity({ scans, emails, onViewScan }: { scans: Scan[]; emails: 
 }
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
+
+// One silent retry: these four panels are loaded with Promise.allSettled, so a
+// single transient 502 would otherwise leave them empty with no UI error and
+// no way to recover without a full page reload.
+const retryOnce = async <T,>(fn: () => Promise<T>): Promise<T> => {
+  try {
+    return await fn();
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return await fn();
+  }
+};
+
 export function Dashboard() {
   const navigate = useNavigate();
   const [emails, setEmails] = useState<Email[]>([]);
@@ -294,7 +307,12 @@ export function Dashboard() {
       const [e, s, intel] = await Promise.all([
         getEmails(0, 200),
         getScans(0, 200),
-        Promise.allSettled([getAlerts(), getCampaigns('open'), getIpStats(), getAttributionStats()]),
+        Promise.allSettled([
+          retryOnce(() => getAlerts()),
+          retryOnce(() => getCampaigns('open')),
+          retryOnce(() => getIpStats()),
+          retryOnce(() => getAttributionStats()),
+        ]),
       ]);
       setEmails(e);
       setScans(s);
