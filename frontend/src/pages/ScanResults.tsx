@@ -87,7 +87,7 @@ function ScanCard({ scan, email, index, onClick }: { scan: Scan; email?: Email; 
           {email?.subject ?? '(no subject)'}
         </p>
         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-          {email?.sender ?? `Email #${scan.email_id}`} · {scan.completed_at ? formatDistanceToNow(new Date(scan.completed_at), { addSuffix: true }) : '—'}
+          {email?.sender ?? `Email #${scan.email_number ?? scan.email_id}`} · {scan.completed_at ? formatDistanceToNow(new Date(scan.completed_at), { addSuffix: true }) : '—'}
         </p>
 
         {/* Engine Scores */}

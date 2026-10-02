@@ -2,6 +2,7 @@
 
 export interface Email {
   id: number;
+  number?: number;
   message_id: string;
   sender: string;
   subject: string;
@@ -40,6 +41,7 @@ export type Classification = 'safe' | 'suspicious' | 'dangerous';
 export interface Scan {
   id: number;
   email_id: number;
+  email_number?: number;
   status: ScanStatus;
   started_at: string | null;
   completed_at: string | null;

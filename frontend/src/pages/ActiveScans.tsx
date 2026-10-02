@@ -66,7 +66,7 @@ function RunningCard({ scan }: { scan: Scan }) {
       />
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-          Scanning email #{scan.email_id}…
+          Scanning email #{scan.email_number ?? scan.email_id}…
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
           <span className="font-mono" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
@@ -278,7 +278,7 @@ export function ActiveScans() {
                   </>
                 )}
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: 1 }}>
-                  Email #{scan.email_id}
+                  Email #{scan.email_number ?? scan.email_id}
                 </span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {scan.completed_at ? formatDistanceToNow(new Date(scan.completed_at), { addSuffix: true }) : '—'}
@@ -332,7 +332,7 @@ export function ActiveScans() {
                   Scan #{scan.id} failed
                 </span>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: 1 }}>
-                  Email #{scan.email_id}
+                  Email #{scan.email_number ?? scan.email_id}
                 </span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {scan.completed_at ? formatDistanceToNow(new Date(scan.completed_at), { addSuffix: true }) : '—'}

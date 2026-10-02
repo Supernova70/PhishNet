@@ -188,7 +188,7 @@ function RecentActivity({ scans, emails, onViewScan }: { scans: Scan[]; emails: 
     <table className="dark-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
       <thead>
         <tr>
-          <th>Email ID</th>
+          <th>Email #</th>
           <th>Sender</th>
           <th>Subject</th>
           <th>Score</th>
@@ -218,7 +218,7 @@ function RecentActivity({ scans, emails, onViewScan }: { scans: Scan[]; emails: 
             >
               <td>
                 <span className="font-mono" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  #{scan.email_id}
+                  #{scan.email_number ?? scan.email_id}
                 </span>
               </td>
               <td style={{ maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
