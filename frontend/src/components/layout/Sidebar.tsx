@@ -13,9 +13,12 @@ import {
   Share2,
   Megaphone,
   Bell,
+  Users,
 } from 'lucide-react';
 import { StatusDot } from '../ui/Badge';
 import type { HealthResponse } from '../../hooks/useSystemHealth';
+import { useAuth } from '../../auth/AuthContext';
+import { can } from '../../auth/permissions';
 
 interface NavItem {
   to: string;
@@ -122,6 +125,7 @@ interface SidebarProps {
 
 export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online', health = null }: SidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
 
   const monitorItems: NavItem[] = [
     { to: '/', icon: <LayoutDashboard size={16} />, label: 'Dashboard' },
@@ -138,10 +142,21 @@ export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online
     { to: '/attachments', icon: <Paperclip size={16} />, label: 'Attachments' },
   ];
 
+  // System section is RBAC-gated: each item appears only with its grant,
+  // the section disappears entirely for users with no system capability.
   const systemItems: NavItem[] = [
-    { to: '/settings', icon: <Settings size={16} />, label: 'Settings' },
-    { to: '/system-health', icon: <Activity size={16} />, label: 'API Health', badgeType: 'dot', dotStatus: apiStatus },
+    ...(can(user, 'system.settings')
+      ? [{ to: '/settings', icon: <Settings size={16} />, label: 'Settings' }]
+      : []),
+    ...(can(user, 'system.health')
+      ? [{ to: '/system-health', icon: <Activity size={16} />, label: 'API Health', badgeType: 'dot' as const, dotStatus: apiStatus }]
+      : []),
+    ...(can(user, 'users.manage')
+      ? [{ to: '/users', icon: <Users size={16} />, label: 'User Management' }]
+      : []),
   ];
+
+  const showStatusPanel = can(user, 'system.health');
 
   // Derive component statuses from health hook
   const dbStatus = health?.components?.database?.status === 'connected' ? 'online' : health ? 'offline' : 'warning' as const;
@@ -213,10 +228,14 @@ export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online
       <nav style={{ flex: 1, padding: '16px 0', overflowY: 'auto' }}>
         <NavSection title="Monitor" items={monitorItems} currentPath={location.pathname} />
         <NavSection title="Analyze" items={analyzeItems} currentPath={location.pathname} />
-        <NavSection title="System" items={systemItems} currentPath={location.pathname} />
+        {systemItems.length > 0 && (
+          <NavSection title="System" items={systemItems} currentPath={location.pathname} />
+        )}
       </nav>
 
-      {/* System Status Panel — DB and ML Model only (Redis removed) */}
+      {/* System Status Panel — DB and ML Model only (Redis removed).
+          RBAC: component detail is system.health data — hidden without it. */}
+      {showStatusPanel && (
       <div style={{
         padding: '12px 16px',
         borderTop: '1px solid var(--border-subtle)',
@@ -238,6 +257,7 @@ export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online
           build 2026.04
         </p>
       </div>
+      )}
     </aside>
   );
 }

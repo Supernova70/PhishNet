@@ -8,6 +8,8 @@ export interface AuthUser {
   role: string;
   gmail_connected: boolean;
   needs_gmail: boolean;
+  /** Effective RBAC capabilities from /auth/me (absent on older payloads). */
+  permissions?: string[];
 }
 
 export interface AuthConfig {
@@ -45,6 +47,7 @@ export const postCredential = async (
     role: data.role ?? 'user',
     gmail_connected: data.gmail_connected ?? false,
     needs_gmail: data.needs_gmail ?? true,
+    permissions: data.permissions ?? [],
   };
 };
 

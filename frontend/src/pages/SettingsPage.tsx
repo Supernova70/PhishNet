@@ -59,7 +59,12 @@ export function SettingsPage() {
         setMaxConcurrent(data.max_concurrent_scans);
         setDynamicAnalysis(data.dynamic_url_analysis_enabled);
       })
-      .catch((err) => setError(err.message))
+      .catch((err) =>
+        setError(
+          (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+            ?? err.message
+        )
+      )
       .finally(() => setLoading(false));
   }, []);
 
@@ -78,7 +83,10 @@ export function SettingsPage() {
       setSuccess('Settings saved successfully');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
+      setError(
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+          ?? (err instanceof Error ? err.message : 'Failed to save')
+      );
     } finally {
       setSaving(false);
     }

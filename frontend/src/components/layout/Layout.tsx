@@ -20,6 +20,7 @@ const PAGE_CONFIG: Record<string, { title: string; breadcrumbs: Array<{ label: s
   '/alerts': { title: 'Alerts', breadcrumbs: [{ label: 'Monitor' }, { label: 'Alerts' }] },
   '/system-health': { title: 'API Health', breadcrumbs: [{ label: 'System' }, { label: 'API Health' }] },
   '/settings': { title: 'Settings', breadcrumbs: [{ label: 'System' }, { label: 'Settings' }] },
+  '/users': { title: 'User Management', breadcrumbs: [{ label: 'System' }, { label: 'User Management' }] },
 };
 
 // Dynamic route titles (matchers run before the prefix lookup)

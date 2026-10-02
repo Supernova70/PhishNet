@@ -15,8 +15,10 @@ import { GraphPage } from './pages/GraphPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { LoginPage } from './pages/LoginPage';
+import { UsersPage } from './pages/UsersPage';
 import { SystemHealthProvider } from './hooks/useSystemHealth';
 import { AuthProvider, useAuth } from './auth/AuthContext';
+import { RequirePermission } from './auth/RequirePermission';
 import { ShieldCheck } from 'lucide-react';
 
 function ProtectedLayout() {
@@ -68,8 +70,15 @@ export default function App() {
               <Route path="alerts" element={<AlertsPage />} />
               <Route path="url-analysis" element={<UrlAnalysis />} />
               <Route path="attachments" element={<AttachmentsPage />} />
-              <Route path="system-health" element={<HealthPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route path="system-health" element={
+                <RequirePermission permission="system.health"><HealthPage /></RequirePermission>
+              } />
+              <Route path="settings" element={
+                <RequirePermission permission="system.settings"><SettingsPage /></RequirePermission>
+              } />
+              <Route path="users" element={
+                <RequirePermission permission="users.manage"><UsersPage /></RequirePermission>
+              } />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>
