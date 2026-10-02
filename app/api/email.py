@@ -160,7 +160,11 @@ async def get_latest_scan(
     )
     if scan:
         numbers = email_numbers(db, email.user_id)
-        return ScanOut(**scan.to_dict(), email_number=numbers.get(scan.email_id))
+        return ScanOut(
+            **scan.to_dict(),
+            email_number=numbers.get(scan.email_id),
+            email_subject=email.subject,
+        )
     return {"scan": None}
 
 

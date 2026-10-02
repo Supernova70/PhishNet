@@ -14,7 +14,7 @@ from typing import AsyncGenerator
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.dependencies import SessionLocal, get_current_user, get_db, owned_or_404
 from app.api.email import email_numbers
@@ -130,11 +130,24 @@ async def list_scans(
             query = query.filter(Verdict.final_score <= score_max)
 
     total = query.count()
-    scans = query.order_by(Scan.id.desc()).offset(skip).limit(limit).all()
+    scans = (
+        query.options(selectinload(Scan.email))
+        .order_by(Scan.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     numbers = email_numbers(db, user.id)
     return ScanListResponse(
         total=total,
-        scans=[ScanOut(**s.to_dict(), email_number=numbers.get(s.email_id)) for s in scans],
+        scans=[
+            ScanOut(
+                **s.to_dict(),
+                email_number=numbers.get(s.email_id),
+                email_subject=s.email.subject if s.email else None,
+            )
+            for s in scans
+        ],
     )
 
 
@@ -262,6 +275,7 @@ async def get_scan(
     return ScanOut(
         **scan.to_dict(),
         email_number=email_numbers(db, scan.user_id).get(scan.email_id),
+        email_subject=scan.email.subject if scan.email else None,
     )
 
 

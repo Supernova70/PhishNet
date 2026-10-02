@@ -24,6 +24,7 @@ class ScanOut(BaseModel):
     id: int
     email_id: int
     email_number: Optional[int] = None
+    email_subject: Optional[str] = None
     status: str
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None

@@ -92,11 +92,13 @@ def test_scan_lists_carry_email_number(env):
     scan_a = data_a["scans"][0]
     assert scan_a["email_id"] == env["ids"]["a"][-1]
     assert scan_a["email_number"] == 3
+    assert scan_a["email_subject"] == "mail 5"
 
     data_b = env["clients"]["b"].get("/scans").json()
     scan_b = data_b["scans"][0]
     assert scan_b["email_id"] == env["ids"]["b"][-1]
     assert scan_b["email_number"] == 2
+    assert scan_b["email_subject"] == "mail 4"
 
 
 def test_email_detail_carries_number(env):
