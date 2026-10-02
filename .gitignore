@@ -28,6 +28,9 @@ docker-compose.override.yml
 Thumbs.db
 
 *.csv
+# Curated hard-negative/positive training samples are committed on purpose
+# (synthetic, no user data); local_ham.csv (real mailbox export) stays ignored.
+!data/hard_negatives.csv
 
 .agent/
 graphify-out/

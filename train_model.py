@@ -45,12 +45,29 @@ warnings.filterwarnings("ignore")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
 
+sys.path.insert(0, str(Path(__file__).parent))
+from app.engines.text_preprocess import clean_text  # noqa: E402
+
 # ── Paths ────────────────────────────────────────────────
 DATA_DIR = Path(__file__).parent / "data"
 MODEL_PATH = DATA_DIR / "phishing_model.joblib"
 REPORT_PATH = DATA_DIR / "training_report.txt"
 LEARNING_CURVE_PATH = DATA_DIR / "learning_curve.png"
 CONFUSION_MATRIX_PATH = DATA_DIR / "confusion_matrix.png"
+
+# Curated modern samples (committed) + real-mailbox export (gitignored),
+# both columns text,label with label in {0,1}. Real-world false positives
+# (Reddit digest, GitLab marketing) live here so the model sees today's
+# legitimate notification traffic, not just the 2016-2018 corpus.
+HARD_NEGATIVES_CSV = DATA_DIR / "hard_negatives.csv"
+LOCAL_HAM_CSV = DATA_DIR / "local_ham.csv"
+# Hard rows are merged as plain data augmentation at weight 1.0.
+# Weighting them >1 was tested and rejected: they are short snippets, so
+# their tf-idf for common terms ("the", "your") is extreme — even 25x with
+# C=1 pushed coef[the] to +6.6 and made generic sentences score ~95% phish.
+# The real FP fix turned out to be the shared clean_text (artifacts like
+# "nbsp" were the drivers), which needs no weighting to work.
+HARD_SAMPLE_WEIGHT = 1.0
 
 KAGGLE_DATASET = "naserabdullahalam/phishing-email-dataset"
 
@@ -231,37 +248,27 @@ def load_dataset(csv_path: Path) -> pd.DataFrame:
 # ═══════════════════════════════════════════════════════════
 #  2. TEXT PREPROCESSING
 # ═══════════════════════════════════════════════════════════
+# clean_text is imported from app.engines.text_preprocess — the exact
+# function runtime inference uses (single source of truth).
 
-def clean_text(text: str) -> str:
+
+def load_hard_samples() -> pd.DataFrame:
+    """Curated hard samples from data/hard_negatives.csv + local_ham.csv.
+
+    Returns an empty frame when neither file exists (stock retrain).
     """
-    Clean email text for ML processing.
-
-    - Strips HTML tags
-    - Replaces URLs with [URL] token
-    - Replaces email addresses with [EMAIL] token
-    - Lowercases
-    - Removes excessive whitespace
-    """
-    # Remove HTML tags
-    text = re.sub(r"<[^>]+>", " ", text)
-
-    # Replace URLs with token (preserves the signal that a URL exists)
-    text = re.sub(r"https?://\S+", " [URL] ", text)
-    text = re.sub(r"www\.\S+", " [URL] ", text)
-
-    # Replace email addresses with token
-    text = re.sub(r"\S+@\S+\.\S+", " [EMAIL] ", text)
-
-    # Remove non-alphanumeric (keep spaces and basic punctuation)
-    text = re.sub(r"[^a-zA-Z0-9\s\[\].,!?]", " ", text)
-
-    # Lowercase
-    text = text.lower()
-
-    # Collapse whitespace
-    text = re.sub(r"\s+", " ", text).strip()
-
-    return text
+    frames = []
+    for path in (HARD_NEGATIVES_CSV, LOCAL_HAM_CSV):
+        if not path.exists():
+            continue
+        df = pd.read_csv(path)
+        df = df[["text", "label"]].dropna()
+        df["text"] = df["text"].astype(str)
+        frames.append(df)
+        logger.info(f"Loaded {len(df)} hard samples from {path.name}")
+    if not frames:
+        return pd.DataFrame(columns=["text", "label"])
+    return pd.concat(frames, ignore_index=True)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -279,12 +286,19 @@ def train_model(df: pd.DataFrame):
 
     X = df["text_clean"]
     y = df["label"]
+    if "hard" in df.columns:
+        weights = np.where(df["hard"].to_numpy() == 1, HARD_SAMPLE_WEIGHT, 1.0)
+    else:
+        weights = np.ones(len(df))
 
     # ── Train/Test Split (80/20, stratified) ─────────────
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y
+    X_train, X_test, y_train, y_test, w_train, _ = train_test_split(
+        X, y, weights, test_size=0.20, random_state=42, stratify=y
     )
     logger.info(f"Train: {len(X_train)}, Test: {len(X_test)}")
+    logger.info(
+        f"Hard-sample weight mass in train: {w_train.sum() - len(w_train):.0f}"
+    )
 
     # ── Build Pipeline ───────────────────────────────────
     pipeline = Pipeline([
@@ -316,11 +330,11 @@ def train_model(df: pd.DataFrame):
         param_grid,
         cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
         scoring="f1",
-        n_jobs=-1,
+        n_jobs=2,
         verbose=1,
         return_train_score=True,
     )
-    grid_search.fit(X_train, y_train)
+    grid_search.fit(X_train, y_train, clf__sample_weight=w_train)
 
     # ── Results ──────────────────────────────────────────
     logger.info(f"Best C: {grid_search.best_params_['clf__C']}")
@@ -481,6 +495,17 @@ def main():
     # 1. Find and load dataset
     csv_path = find_csv_file()
     df = load_dataset(csv_path)
+
+    # 1b. Merge curated hard samples (modern legit traffic + modern phish)
+    hard = load_hard_samples()
+    if len(hard):
+        df = df.assign(hard=0)
+        hard = hard.assign(hard=1)
+        df = pd.concat([df, hard], ignore_index=True)
+        logger.info(
+            f"Dataset after hard-sample merge: {len(df)} rows "
+            f"({int((df['hard'] == 1).sum())} curated)"
+        )
 
     # 2. Train model
     best_model, X_train, y_train, X_test, y_test = train_model(df)
