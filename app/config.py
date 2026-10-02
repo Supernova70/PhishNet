@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # ── App ──────────────────────────────────────────────
     APP_NAME: str = "AI-Powered Email Threat Detection, GeoLocation & Forensic Intelligence Platform"
-    APP_SHORT_NAME: str = "Phishing Guard 2.0"
+    APP_SHORT_NAME: str = "Phishing-Guard 2.0"
     APP_VERSION: str = "3.0.0"
     DEBUG: bool = False
 

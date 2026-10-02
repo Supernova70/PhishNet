@@ -5,7 +5,7 @@ Why this exists
 ---------------
 Free VT accounts are metered (e.g. 4 req/min, 500 calls/day per account).
 When a quota is exhausted the API answers ``429 Quota Exceeded`` and that key
-is useless until the next metering period. Phishing Guard 2.0 therefore
+is useless until the next metering period. Phishing-Guard 2.0 therefore
 accepts any
 number of keys in ``VIRUSTOTAL_API_KEYS`` (comma-separated, one key per VT
 account) and this client rotates through them automatically:

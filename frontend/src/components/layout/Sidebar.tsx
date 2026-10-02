@@ -208,7 +208,7 @@ export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online
           </div>
           <div>
             <p style={{ fontSize: '0.8rem', fontWeight: 700, letterSpacing: '0.1em', color: 'var(--primary)' }}>
-              PHISHING GUARD
+              PHISHING-GUARD
             </p>
             <span style={{
               fontSize: '0.6rem',
@@ -218,7 +218,7 @@ export function Sidebar({ unreadCount = 0, runningScans = 0, apiStatus = 'online
               padding: '1px 5px',
               borderRadius: 3,
             }}>
-              v2.0
+              2.0
             </span>
           </div>
         </div>

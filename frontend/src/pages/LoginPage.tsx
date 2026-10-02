@@ -244,8 +244,8 @@ export function LoginPage() {
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <ScanLine size={13} style={{ color: 'var(--primary)', flexShrink: 0, marginTop: 2 }} />
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.6, textAlign: 'justify' }}>
-              Phishing Guard scans your emails for threats without sending,
-              deleting, or modifying your email.
+              Phishing-Guard 2.0 scans your emails for threats without
+              sending, deleting, or modifying your email.
             </span>
           </div>
         </div>
