@@ -245,6 +245,118 @@ class TestCorroborationCap:
         # No auth evidence → plain sub-threshold damping only: 37.3
         assert verdict.ai_score == 10.0 + (64.6 - 10.0) * 0.5
 
+    @patch("app.services.scan_service.get_text_analyzer")
+    @patch("app.services.scan_service.AttachmentAnalyzer")
+    @patch("app.services.scan_service.UrlAnalyzer")
+    def test_uncorroborated_phishing_label_capped_at_suspicious(
+        self, MockUrl, MockAtt, mock_get_text
+    ):
+        """Model claims Phishing (>=65) but envelope is fully authenticated
+        and every other channel is clean → capped at 49, never dangerous."""
+        from app.engines.headers.auth_parser import AuthSummary
+
+        mock_text = MagicMock()
+        mock_text.analyze.return_value.confidence = 74.0
+        mock_text.analyze.return_value.label = "Phishing"
+        mock_text.analyze.return_value.is_phishing = True
+        mock_get_text.return_value = mock_text
+
+        mock_url = MagicMock()
+        mock_url.analyze.return_value.url_score = 0.0
+        mock_url.analyze.return_value.total_urls = 0
+        mock_url.analyze.return_value.analyzed_urls = 0
+        mock_url.analyze.return_value.vt_checked_urls = 0
+        mock_url.analyze.return_value.high_risk_urls = []
+        mock_url.analyze.return_value.per_url_results = []
+        MockUrl.return_value = mock_url
+
+        mock_att = MagicMock()
+        mock_att.analyze.return_value.attachment_score = 0.0
+        mock_att.analyze.return_value.total_files = 0
+        mock_att.analyze.return_value.analyzed_files = 0
+        mock_att.analyze.return_value.high_risk_files = []
+        mock_att.analyze.return_value.per_file_results = []
+        MockAtt.return_value = mock_att
+
+        db = MagicMock()
+        email = Email(
+            id=23, body_text="Your weekly discussion digest is ready", attachments=[]
+        )
+        header_result = HeaderAnalysisResult(
+            present=True,
+            score=0.0,
+            auth=AuthSummary(
+                spf_result="pass", dkim_result="pass", dmarc_result="pass"
+            ),
+        )
+        service = ScanService(db)
+        with patch.object(
+            ScanService, "_analyze_headers", return_value=header_result
+        ):
+            service._execute_pipeline(MagicMock(id=23), email)
+
+        verdict = _last_verdict(db)
+        assert verdict.ai_score == 49.0
+        assert verdict.final_score == 49.0
+        assert verdict.classification == "suspicious"
+        assert any(
+            "ml_uncorroborated_capped" in f for f in verdict.breakdown["ai"]["flags"]
+        )
+
+    @patch("app.services.scan_service.get_text_analyzer")
+    @patch("app.services.scan_service.AttachmentAnalyzer")
+    @patch("app.services.scan_service.UrlAnalyzer")
+    def test_phishing_label_not_capped_when_url_risk_present(
+        self, MockUrl, MockAtt, mock_get_text
+    ):
+        """A corroborating risky URL keeps the model's claim at full weight."""
+        from app.engines.headers.auth_parser import AuthSummary
+
+        mock_text = MagicMock()
+        mock_text.analyze.return_value.confidence = 74.0
+        mock_text.analyze.return_value.label = "Phishing"
+        mock_text.analyze.return_value.is_phishing = True
+        mock_get_text.return_value = mock_text
+
+        mock_url = MagicMock()
+        mock_url.analyze.return_value.url_score = 45.0
+        mock_url.analyze.return_value.total_urls = 1
+        mock_url.analyze.return_value.analyzed_urls = 1
+        mock_url.analyze.return_value.vt_checked_urls = 0
+        mock_url.analyze.return_value.high_risk_urls = []
+        mock_url.analyze.return_value.per_url_results = []
+        MockUrl.return_value = mock_url
+
+        mock_att = MagicMock()
+        mock_att.analyze.return_value.attachment_score = 0.0
+        mock_att.analyze.return_value.total_files = 0
+        mock_att.analyze.return_value.analyzed_files = 0
+        mock_att.analyze.return_value.high_risk_files = []
+        mock_att.analyze.return_value.per_file_results = []
+        MockAtt.return_value = mock_att
+
+        db = MagicMock()
+        email = Email(id=24, body_text="Login at http://evil.example", attachments=[])
+        header_result = HeaderAnalysisResult(
+            present=True,
+            score=0.0,
+            auth=AuthSummary(
+                spf_result="pass", dkim_result="pass", dmarc_result="pass"
+            ),
+        )
+        service = ScanService(db)
+        with patch.object(
+            ScanService, "_analyze_headers", return_value=header_result
+        ):
+            service._execute_pipeline(MagicMock(id=24), email)
+
+        verdict = _last_verdict(db)
+        assert verdict.ai_score == 74.0
+        assert verdict.classification == "dangerous"
+        assert not any(
+            "ml_uncorroborated_capped" in f for f in verdict.breakdown["ai"]["flags"]
+        )
+
 
 class TestBecLookalikeIntegration:
     """BEC categories and lookalike domains raise the combined AI signal."""

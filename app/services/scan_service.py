@@ -201,13 +201,17 @@ class ScanService:
                 ml_evidence = ml_score
             else:
                 ml_evidence = 10.0 + (ml_score - 10.0) * 0.5
-            # Corroboration cap: the model itself says "Legitimate", the
-            # envelope is authenticated (SPF+DKIM pass or DMARC pass) and
-            # headers, URLs and attachments are all clean → a lone
-            # mid-band ML wobble must not flag the mail. Cap the damped
-            # residual at 25 so it can never cross the 30 threshold on
-            # its own.
+            # Corroboration cap: the envelope is authenticated (SPF+DKIM
+            # pass or DMARC pass) and headers, URLs and attachments are
+            # all clean → a lone ML signal must not flag the mail on its
+            # own. Sub-threshold model output is capped at 25 (cannot
+            # cross the 30 flag threshold); a model that claims
+            # "Phishing" (>=65) with zero corroboration anywhere — no
+            # header anomalies, no risky URLs, no attachments, no BEC or
+            # lookalike evidence — is capped at 49 (suspicious, never
+            # dangerous) and flagged as uncorroborated.
             ml_capped = False
+            ml_cap_flag = ""
             if (
                 not ai_result.is_phishing
                 and envelope_validated
@@ -218,6 +222,27 @@ class ScanService:
             ):
                 ml_evidence = 25.0
                 ml_capped = True
+                ml_cap_flag = (
+                    "ml_residual_capped: envelope authenticated, "
+                    "all channels clean"
+                )
+            elif (
+                ai_result.is_phishing
+                and envelope_validated
+                and header_score == 0
+                and url_score == 0
+                and attachment_score == 0
+                and bec_result.bec_score == 0
+                and lk_result.score == 0
+                and ml_evidence > 49.0
+            ):
+                ml_evidence = 49.0
+                ml_capped = True
+                ml_cap_flag = (
+                    "ml_uncorroborated_capped: lone ML claim on fully "
+                    "authenticated mail with every other channel clean "
+                    "cannot exceed suspicious"
+                )
             ai_score = max(ml_evidence, bec_result.bec_score, lk_result.score)
             # Content rules over the body text (plan §5 B7) — flags only.
             ai_flags = (
@@ -226,9 +251,7 @@ class ScanService:
                 + scan_body_yara(text)
             )
             if ml_capped:
-                ai_flags.append(
-                    "ml_residual_capped: envelope authenticated, all channels clean"
-                )
+                ai_flags.append(ml_cap_flag)
 
             # ── 5. Compute Final Score + Verdict ──────────────────
             final_score = self._compute_final_score(
