@@ -6,7 +6,6 @@ and predicts whether email text is phishing or legitimate.
 """
 
 import logging
-import re
 from dataclasses import dataclass
 from typing import List, Optional
 from functools import lru_cache
@@ -15,6 +14,7 @@ from pathlib import Path
 import joblib
 
 from app.config import get_settings
+from app.engines.text_preprocess import clean_text as _clean_text
 
 logger = logging.getLogger(__name__)
 
@@ -22,25 +22,6 @@ logger = logging.getLogger(__name__)
 # The model was trained on cleaned text; raw emails with placement drives, deadlines,
 # and registration links can score 50-65% without being phishing.
 PHISHING_THRESHOLD = 65.0
-
-
-def _clean_text(text: str) -> str:
-    """
-    Preprocess email text the same way as during model training.
-
-    Without this, the model receives raw HTML/RTF and produces unreliable predictions
-    because the TF-IDF vocabulary was trained on cleaned text.
-    """
-    if not text:
-        return ""
-    text = re.sub(r"<[^>]+>", " ", text)                    # strip HTML tags
-    text = re.sub(r"https?://\S+", " [URL] ", text)         # replace URLs with token
-    text = re.sub(r"www\.\S+", " [URL] ", text)             # replace www URLs
-    text = re.sub(r"\S+@\S+\.\S+", " [EMAIL] ", text)      # replace emails with token
-    text = re.sub(r"[^a-zA-Z0-9\s\[\].,!?]", " ", text)   # remove non-alphanumeric
-    text = text.lower()
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
 
 
 @dataclass
