@@ -42,6 +42,7 @@ export interface Scan {
   id: number;
   email_id: number;
   email_number?: number;
+  email_subject?: string | null;
   status: ScanStatus;
   started_at: string | null;
   completed_at: string | null;

@@ -69,8 +69,8 @@ function RunningCard({ scan }: { scan: Scan }) {
           Scanning email #{scan.email_number ?? scan.email_id}…
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-          <span className="font-mono" style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-            Scan ID #{scan.id}
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {scan.email_subject ?? '(no subject)'}
           </span>
           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>·</span>
           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -268,8 +268,8 @@ export function ActiveScans() {
                   borderBottom: i < completedScans.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                 }}
               >
-                <span className="font-mono" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', minWidth: 64 }}>
-                  #{scan.id}
+                <span className="font-mono" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', minWidth: 72 }}>
+                  Email #{scan.email_number ?? scan.email_id}
                 </span>
                 {scan.verdict && (
                   <>
@@ -277,8 +277,8 @@ export function ActiveScans() {
                     <ClassificationBadge classification={scan.verdict.classification} size="sm" />
                   </>
                 )}
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: 1 }}>
-                  Email #{scan.email_number ?? scan.email_id}
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {scan.email_subject ?? '(no subject)'}
                 </span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {scan.completed_at ? formatDistanceToNow(new Date(scan.completed_at), { addSuffix: true }) : '—'}
@@ -329,10 +329,10 @@ export function ActiveScans() {
               >
                 <XCircle size={14} style={{ color: '#EF4444', flexShrink: 0 }} />
                 <span className="font-mono" style={{ fontSize: '0.75rem', color: '#FCA5A5' }}>
-                  Scan #{scan.id} failed
+                  Email #{scan.email_number ?? scan.email_id} failed
                 </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: 1 }}>
-                  Email #{scan.email_number ?? scan.email_id}
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {scan.email_subject ?? '(no subject)'}
                 </span>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {scan.completed_at ? formatDistanceToNow(new Date(scan.completed_at), { addSuffix: true }) : '—'}
