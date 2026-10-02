@@ -4,20 +4,29 @@ import time
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.dependencies import engine
+from app.dependencies import engine, get_db
 from app.integrations.virustotal import VirusTotalClient
+from app.permissions import optional_permissions
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["System"])
 
 
 @router.get("/health")
-async def health_check():
-    """System health check — returns component status for DB, ML model, and VT."""
+async def health_check(request: Request, db: Session = Depends(get_db)):
+    """System health check — always 200 for LB probes.
+
+    Anonymous / unpermitted callers get the slim contract
+    ``{status, version, response_time_ms}`` (enough for probes and the
+    backend-offline banner). The ``components`` block (VT rotation stats,
+    key counts, model path, DB detail) is revealed only to holders of the
+    ``system.health`` permission.
+    """
     settings = get_settings()
     overall = "ok"
     start = time.time()
@@ -50,7 +59,17 @@ async def health_check():
         overall = "degraded"
         logger.warning(f"Health check — ML model error: {e}")
 
-    # ── 3. VirusTotal Check ───────────────────────────────────────────
+    # ── 3. VirusTotal detail (system.health only) ──────────────────────
+    detailed = "system.health" in optional_permissions(request, db)
+    response_time_ms = round((time.time() - start) * 1000)
+    body: dict = {
+        "status": overall,
+        "version": settings.APP_VERSION,
+        "response_time_ms": response_time_ms,
+    }
+    if not detailed:
+        return body
+
     vt_keys = settings.vt_api_keys
     vt_status = "configured" if vt_keys else "not_configured"
     vt_detail = (
@@ -66,36 +85,30 @@ async def health_check():
             + (f", {vt_rotation['invalid']} invalid" if vt_rotation["invalid"] else "")
         )
 
-    response_time_ms = round((time.time() - start) * 1000)
-
-    return {
-        "status": overall,
-        "version": settings.APP_VERSION,
-        "response_time_ms": response_time_ms,
-        "components": {
-            "database": {
-                "status": db_status,
-                "detail": db_detail,
-            },
-            "ml_model": {
-                "status": ml_status,
-                "detail": ml_detail,
-            },
-            "virustotal": {
-                "status": vt_status,
-                "key_count": len(vt_keys),
-                "rotation": vt_rotation,
-                "detail": vt_detail,
-            },
-            "dynamic_url": {
-                "status": "enabled" if settings.DYNAMIC_URL_ENABLED else "disabled",
-                "max_per_scan": settings.DYNAMIC_URL_MAX_PER_SCAN,
-                "screenshot_dir": settings.DYNAMIC_URL_SCREENSHOT_DIR,
-                "detail": (
-                    "Policy-gated Chromium analysis is enabled"
-                    if settings.DYNAMIC_URL_ENABLED
-                    else "Static URL analysis only; set DYNAMIC_URL_ENABLED=true to opt in"
-                ),
-            },
+    body["components"] = {
+        "database": {
+            "status": db_status,
+            "detail": db_detail,
+        },
+        "ml_model": {
+            "status": ml_status,
+            "detail": ml_detail,
+        },
+        "virustotal": {
+            "status": vt_status,
+            "key_count": len(vt_keys),
+            "rotation": vt_rotation,
+            "detail": vt_detail,
+        },
+        "dynamic_url": {
+            "status": "enabled" if settings.DYNAMIC_URL_ENABLED else "disabled",
+            "max_per_scan": settings.DYNAMIC_URL_MAX_PER_SCAN,
+            "screenshot_dir": settings.DYNAMIC_URL_SCREENSHOT_DIR,
+            "detail": (
+                "Policy-gated Chromium analysis is enabled"
+                if settings.DYNAMIC_URL_ENABLED
+                else "Static URL analysis only; set DYNAMIC_URL_ENABLED=true to opt in"
+            ),
         },
     }
+    return body

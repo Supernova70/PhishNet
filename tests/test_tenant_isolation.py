@@ -148,8 +148,8 @@ def env(tmp_path):
 
 ANON_PATHS = [
     "/emails", "/scans", "/alerts", "/campaigns", "/indicators",
-    "/evidence", "/audit", "/scans/events",
-]  # /settings GET is intentionally open; mutations are admin-gated
+    "/evidence", "/audit", "/scans/events", "/settings", "/users",
+]  # RBAC (R1): settings + user management require a session too
 
 
 class TestAnonymousRejected:

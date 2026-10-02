@@ -35,3 +35,4 @@ from app.models.campaign import Campaign  # noqa: F401, E402
 from app.models.evidence import EvidenceChain  # noqa: F401, E402
 from app.models.audit_log import AuditLog  # noqa: F401, E402
 from app.models.alert import Alert  # noqa: F401, E402
+from app.models.user_permission import UserPermission  # noqa: F401, E402

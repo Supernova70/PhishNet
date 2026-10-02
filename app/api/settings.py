@@ -8,12 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_current_user, get_db, require_admin
 from app.models.user import User
+from app.permissions import require_permission
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/settings", tags=["Settings"])
-
 
 # ── Schemas ────────────────────────────────────────────────
 
@@ -51,8 +50,10 @@ class ApiKeyResponse(BaseModel):
 # ── Endpoints ──────────────────────────────────────────────
 
 @router.get("", response_model=SystemConfig)
-async def get_settings():
-    """Get current system configuration."""
+async def get_settings(
+    user: User = Depends(require_permission("system.settings")),
+):
+    """Get current system configuration (requires system.settings)."""
     vt_key = os.environ.get("VT_API_KEY", "")
     gsb_key = os.environ.get("GSBROWSING_API_KEY", "")
     ml_path = os.environ.get("ML_MODEL_PATH", "")
@@ -73,9 +74,9 @@ async def get_settings():
 @router.put("", response_model=SystemConfig)
 async def update_settings(
     req: UpdateSettingsRequest,
-    user: User = Depends(require_admin),
+    user: User = Depends(require_permission("system.settings")),
 ):
-    """Update runtime settings (admin only, persisted to .env file)."""
+    """Update runtime settings (requires system.settings, persisted to .env)."""
     env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
 
     updates = {}
@@ -118,9 +119,9 @@ async def update_settings(
 @router.post("/api-keys", response_model=ApiKeyResponse)
 async def update_api_key(
     req: ApiKeyUpdate,
-    user: User = Depends(require_admin),
+    user: User = Depends(require_permission("system.settings")),
 ):
-    """Update an API key for an external service (admin only)."""
+    """Update an API key for an external service (requires system.settings)."""
     env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
 
     env_key_map = {

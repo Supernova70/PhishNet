@@ -36,6 +36,7 @@ from app.config import get_settings
 from app.dependencies import get_current_user, get_db
 from app.models.audit_log import AuditLog
 from app.models.user import User
+from app.permissions import effective_permissions
 
 logger = logging.getLogger(__name__)
 
@@ -215,9 +216,15 @@ def google_credential(
 
 
 @router.get("/me")
-def auth_me(user: User = Depends(get_current_user)) -> dict:
+def auth_me(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
     data = user.to_dict()
     data["needs_gmail"] = not user.gmail_connected
+    # Effective RBAC capabilities — resolved live (never from the JWT) so a
+    # grant/revoke takes effect on the next poll without re-login.
+    data["permissions"] = sorted(effective_permissions(db, user))
     return data
 
 

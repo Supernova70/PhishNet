@@ -15,7 +15,8 @@ from app.models import Base
 
 # action vocabulary (data, not enum):
 #   raw_view | report_export | evidence_download | evidence_verify |
-#   retention_purge | evidence_append
+#   retention_purge | evidence_append | permission_grant |
+#   permission_revoke | role_change
 AUDIT_ACTIONS = (
     "raw_view",
     "report_export",

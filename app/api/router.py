@@ -12,6 +12,7 @@ from app.api.intel import router as intel_router
 from app.api.report import router as report_router
 from app.api.evidence import router as evidence_router
 from app.api.alerts import router as alerts_router
+from app.api.users import router as users_router
 
 api_router = APIRouter()
 
@@ -25,3 +26,4 @@ api_router.include_router(intel_router)
 api_router.include_router(report_router)
 api_router.include_router(evidence_router)
 api_router.include_router(alerts_router)
+api_router.include_router(users_router)
