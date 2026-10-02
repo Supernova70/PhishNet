@@ -13,7 +13,7 @@ from fastapi import Response
 
 from app.config import get_settings
 
-COOKIE_NAME = "phishnet_session"
+COOKIE_NAME = "phishing_guard_session"
 ALGORITHM = "HS256"
 
 

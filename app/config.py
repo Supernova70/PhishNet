@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # ── App ──────────────────────────────────────────────
     APP_NAME: str = "AI-Powered Email Threat Detection, GeoLocation & Forensic Intelligence Platform"
-    APP_SHORT_NAME: str = "PhishNet"
+    APP_SHORT_NAME: str = "Phishing Guard 2.0"
     APP_VERSION: str = "3.0.0"
     DEBUG: bool = False
 
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
         "openid email profile https://www.googleapis.com/auth/gmail.readonly"
     )
     # Our own session cookie (HS256). Override with a long random value in prod.
-    SESSION_SECRET: str = "phishnet-dev-session-secret-change-me"
+    SESSION_SECRET: str = "phishing-guard-dev-session-secret-change-me"
     SESSION_TTL_HOURS: int = 168  # 7 days
     SESSION_COOKIE_SECURE: bool = False  # True behind HTTPS in production
     # Fernet key for stored OAuth refresh tokens / email bodies at rest:

@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-STATE_COOKIE = "phishnet_oauth_state"
+STATE_COOKIE = "phishing_guard_oauth_state"
 GIS_CSRF_COOKIE = "g_csrf_token"
 
 

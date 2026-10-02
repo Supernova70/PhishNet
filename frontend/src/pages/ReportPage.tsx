@@ -123,7 +123,7 @@ export function ReportPage() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = url;
-    anchor.download = `phishnet-report-scan-${report.scan.id}.json`;
+    anchor.download = `phishing-guard-report-scan-${report.scan.id}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
   };
