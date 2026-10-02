@@ -54,7 +54,24 @@ fi
 # ── Step 3: TLS certificate (nginx refuses to start without one) ────────────
 echo -e "${YELLOW}[3/6] Checking TLS certificate...${NC}"
 SELF_SIGNED=""
-if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
+RENEWAL_CONF="/etc/letsencrypt/renewal/${DUCKDNS_DOMAIN}.duckdns.org.conf"
+if [ -f "$CERT_DIR/fullchain.pem" ]; then
+    echo -e "${GREEN}Certificate found: $CERT_DIR/fullchain.pem${NC}"
+elif [ -f "$RENEWAL_CONF" ]; then
+    # A certbot lineage exists but the cert files are broken. Writing a
+    # self-signed cert here would clobber the archive through the live/
+    # symlinks and permanently destroy the Let's Encrypt key pair — refuse.
+    echo -e "${RED}Let's Encrypt lineage exists but $CERT_DIR/fullchain.pem is missing.${NC}"
+    echo -e "${RED}Refusing to self-sign over it (that corrupts the certbot archive).${NC}"
+    echo -e "${RED}Reissue the certificate instead:${NC}"
+    echo -e "${RED}  $COMPOSE stop nginx${NC}"
+    echo -e "${RED}  sudo certbot delete --cert-name ${DUCKDNS_DOMAIN}.duckdns.org${NC}"
+    echo -e "${RED}  sudo certbot certonly --standalone -d ${DUCKDNS_DOMAIN}.duckdns.org --agree-tos \\${NC}"
+    echo -e "${RED}      --register-unsafely-without-email \\${NC}"
+    echo -e "${RED}      --pre-hook \"docker stop pg-nginx || true\" --post-hook \"docker start pg-nginx || true\"${NC}"
+    echo -e "${RED}  $COMPOSE start nginx${NC}"
+    exit 1
+else
     echo -e "${YELLOW}No certificate at $CERT_DIR — generating a self-signed one (valid 365d).${NC}"
     sudo mkdir -p "$CERT_DIR"
     sudo openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
@@ -64,8 +81,6 @@ if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
         2>/dev/null
     SELF_SIGNED="1"
     echo -e "${GREEN}Self-signed certificate created.${NC}"
-else
-    echo -e "${GREEN}Certificate found: $CERT_DIR/fullchain.pem${NC}"
 fi
 
 # ── Step 4: Build + start all containers ─────────────────────────────────────
