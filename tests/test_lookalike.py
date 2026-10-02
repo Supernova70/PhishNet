@@ -59,6 +59,21 @@ class TestCheckDomain:
         assert check_domain("microsoftonline.com") == []
         assert check_domain("googlemail.com") == []
 
+    def test_cross_brand_distance_between_real_brands_not_flagged(self):
+        # gitlab.com was flagged as a typosquat of github (distance 2)
+        # and scored 75 on a genuine GitLab marketing email.
+        assert check_domain("gitlab.com") == []
+        assert check_domain("about.gitlab.com") == []
+        assert check_domain("email.gitlab.com") == []
+        assert check_domain("reddit.com") == []
+        assert check_domain("click.redditmail.com") == []
+
+    def test_typosquat_of_brand_still_flagged_on_unknown_domain(self):
+        matches = check_domain("githuv.com")
+        assert any(m.brand == "github" and m.reason == "typosquat" for m in matches)
+        matches = check_domain("gitlb.com")
+        assert any(m.reason == "typosquat" for m in matches)
+
     def test_unrelated_domain_clean(self):
         assert check_domain("example.org") == []
         assert check_domain("my-company-blog.example") == []

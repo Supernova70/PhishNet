@@ -11,8 +11,10 @@ watchlist using four signals (plan §Week 2):
   4. brand in subdomain — "paypal.secure-login.tk" while the registrable
                         domain is NOT the real brand domain
 
-Legit brand domains (registrable label == brand, e.g. paypal.com) are
-never flagged: that is alignment, not impersonation.
+Legit brand domains are never flagged: registrable labels that belong
+to a known brand (paypal.com, gitlab.com) return no matches at all —
+that is alignment, not impersonation, and cross-brand edit distance
+(gitlab ≈ github) must not manufacture one.
 
 Pure/offline — no DNS, no network.
 """
@@ -36,9 +38,28 @@ HOMOGLYPH_MAP = {
 EXTRA_BRANDS = (
     "wellsfargo", "bankofamerica", "paypal", "sbi", "hdfc",
     "icici", "axisbank", "phonepe", "gpay",
+    "gitlab", "reddit", "bitbucket", "slack", "discord",
+    "notion", "figma", "openai",
 )
 
 BRANDS: tuple[str, ...] = tuple(dict.fromkeys(KNOWN_BRANDS + EXTRA_BRANDS))
+
+# Registrable labels that ARE a known legitimate brand's own domain
+# ("gitlab" → gitlab.com, "reddit" → reddit.com): an attacker cannot
+# register these, so nothing under them impersonates any other brand.
+# Without this, cross-brand edit distance fires — gitlab.com was flagged
+# as a typosquat of github (distance 2) and scored 75 on a real email.
+KNOWN_REGISTRABLE_LABELS: frozenset[str] = frozenset(BRANDS) | frozenset({
+    "jira", "atlassian", "quora", "medium", "substack", "zoom",
+    "twitch", "spotify", "airbnb", "uber", "coursera", "udemy",
+    "anthropic", "stripe", "shopify", "wix", "godaddy", "cloudflare",
+    "signal", "snapchat", "pinterest", "quora", "swiggy", "zomato",
+    "flipkart", "paytm", "razorpay", "hackerone", "bugcrowd",
+    "krebsonline", "stackoverflow", "gmail", "yahoo", "aol",
+    # Brand-owned sending infrastructure whose registrable label embeds
+    # the brand (redditmail.com signs Reddit's DMARC-aligned mail).
+    "redditmail", "substackmail", "googlegroups", "gitlabmail",
+})
 
 # Known-legitimate domains where a brand is embedded in the registrable
 # label ("microsoftonline.com", "googlemail.com") — never lookalikes.
@@ -161,9 +182,9 @@ def check_domain(host: str) -> List[LookalikeMatch]:
         return []
 
     reg = registrable_domain(host) or host
-    if reg in LEGIT_EMBEDDED:
-        return []
     reg_label = (reg.split(".")[0] if "." in reg else reg).lower()
+    if reg in LEGIT_EMBEDDED or reg_label in KNOWN_REGISTRABLE_LABELS:
+        return []
     labels = _candidate_labels(host)
     # Subdomain labels = every label except those of the registrable domain
     reg_labels_set = set(_candidate_labels(reg))
